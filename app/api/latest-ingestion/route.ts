@@ -39,7 +39,7 @@ export async function GET(request: Request) {
     const latestIngestions = await Promise.all(
       fileTypes.map(async (fileType) => {
         // Find latest upload for this table (including processing/queued status)
-        // PostgreSQL TIMESTAMP columns store in UTC, but we need to ensure proper conversion
+        // Convert timestamp to UTC explicitly to ensure correct timezone handling
         const result = await pool.query(
           `SELECT 
             upload_id,
@@ -50,7 +50,7 @@ export async function GET(request: Request) {
             rows_updated,
             rows_failed,
             upload_status,
-            uploaded_at,
+            (uploaded_at AT TIME ZONE 'UTC')::text as uploaded_at,
             error_message
           FROM him_ttdi.csv_uploads
           WHERE table_name = $1
@@ -85,29 +85,16 @@ export async function GET(request: Request) {
           // Ignore date extraction errors
         }
 
-        // Convert timestamp to ISO string to ensure proper timezone handling
-        // PostgreSQL TIMESTAMP columns are stored without timezone, but interpreted in server timezone
-        // We need to explicitly convert to UTC for proper client-side timezone conversion
+        // Use uploaded_at directly from csv_uploads table
+        // The timestamp is already converted to UTC text in the query
+        // Convert to ISO string for proper client-side timezone handling
         let uploadedAt: string | null = null;
         if (upload.uploaded_at) {
-          // If it's a Date object, convert directly
-          if (upload.uploaded_at instanceof Date) {
-            uploadedAt = upload.uploaded_at.toISOString();
-          } else {
-            // If it's a string, parse it
-            // PostgreSQL returns timestamps as strings, we need to ensure they're treated as UTC
-            let dateStr = String(upload.uploaded_at);
-            // If the string doesn't have timezone info, assume it's in UTC
-            if (!dateStr.includes('Z') && !dateStr.includes('+') && !dateStr.match(/-\d{2}:\d{2}$/)) {
-              // Check if it ends with timezone offset pattern
-              if (!dateStr.match(/[+-]\d{2}:\d{2}$/)) {
-                dateStr = dateStr + 'Z'; // Add Z to indicate UTC
-              }
-            }
-            const date = new Date(dateStr);
-            if (!isNaN(date.getTime())) {
-              uploadedAt = date.toISOString();
-            }
+          // Parse the UTC timestamp string and convert to ISO format
+          // The timestamp is already in UTC from the query
+          const date = new Date(upload.uploaded_at + 'Z'); // Ensure it's treated as UTC
+          if (!isNaN(date.getTime())) {
+            uploadedAt = date.toISOString();
           }
         }
 
