@@ -143,7 +143,7 @@ export async function ingestConsultations(
       const patientId = await findOrCreatePatient(pool, phoneNo, patientName, mrnNo, icNo);
       
       const doctorInfo = extractDoctorCode(row['DOCTOR\'S NAME'] || '');
-      const doctorId = await findOrCreateDoctor(pool, doctorInfo.name, doctorInfo.code);
+      const doctorId = await findOrCreateDoctor(pool, doctorInfo.name, doctorInfo.code || undefined);
       
       const visitDate = parseDate(row['DATE'] || '');
       if (!visitDate) {
@@ -272,7 +272,7 @@ export async function ingestProcedurePrescriptions(
       }
       
       const doctorInfo = extractDoctorCode(doctorName);
-      const doctorId = await findOrCreateDoctor(pool, doctorInfo.name, doctorInfo.code);
+      const doctorId = await findOrCreateDoctor(pool, doctorInfo.name, doctorInfo.code || undefined);
       
       const prescriptionDate = parseDate(row['DATE'] || '');
       if (!prescriptionDate) {
@@ -371,7 +371,7 @@ export async function ingestMedicinePrescriptions(
       }
       
       const doctorInfo = extractDoctorCode(doctorName);
-      const doctorId = await findOrCreateDoctor(pool, doctorInfo.name, doctorInfo.code);
+      const doctorId = await findOrCreateDoctor(pool, doctorInfo.name, doctorInfo.code || undefined);
       
       const prescriptionDate = parseDate(row['DATE'] || '');
       if (!prescriptionDate) {
@@ -451,7 +451,7 @@ export async function ingestInvoices(
       let doctorId = null;
       if (doctorName && doctorName !== '') {
         const doctorInfo = extractDoctorCode(doctorName);
-        doctorId = await findOrCreateDoctor(pool, doctorInfo.name, doctorInfo.code);
+        doctorId = await findOrCreateDoctor(pool, doctorInfo.name, doctorInfo.code || undefined);
       }
       
       const invoiceDate = parseDate(row['INVOICE DATE'] || '');
@@ -535,7 +535,7 @@ export async function ingestItemizedSales(
       const patientId = invoiceResult.rows.length > 0 ? invoiceResult.rows[0].patient_id : null;
       
       const doctorInfo = extractDoctorCode(doctorName);
-      const doctorId = await findOrCreateDoctor(pool, doctorInfo.name, doctorInfo.code);
+      const doctorId = await findOrCreateDoctor(pool, doctorInfo.name, doctorInfo.code || undefined);
       
       const existing = await pool.query(
         'SELECT sale_id FROM him_ttdi.itemized_sales WHERE invoice_code = $1',
@@ -612,7 +612,7 @@ export async function ingestDailyDoctorSales(
   let skipped = 0;
   
   const doctorColumns: { name: string; visitCol: string; salesCol: string }[] = [];
-  const headers = Object.keys(records[0] || {});
+  const headers = Object.keys((records[0] as Record<string, any>) || {});
   
   for (const header of headers) {
     if (header.includes('VISIT NO')) {
@@ -640,7 +640,7 @@ export async function ingestDailyDoctorSales(
         
         if (visitCount > 0 || totalSales > 0) {
           const doctorInfo = extractDoctorCode(doctorCol.name);
-          const doctorId = await findOrCreateDoctor(pool, doctorInfo.name, doctorInfo.code);
+          const doctorId = await findOrCreateDoctor(pool, doctorInfo.name, doctorInfo.code || undefined);
           
           // Check if record exists for counting (but use ON CONFLICT for actual operation)
           const existing = await pool.query(

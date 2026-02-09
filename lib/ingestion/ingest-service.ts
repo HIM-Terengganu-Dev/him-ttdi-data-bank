@@ -34,7 +34,7 @@ export async function ingestCSVFile(
       columns: true,
       skip_empty_lines: true,
       trim: true,
-    });
+    }) as Record<string, any>[];
 
     if (records.length === 0) {
       return {
@@ -48,7 +48,7 @@ export async function ingestCSVFile(
     }
 
     // Detect file type
-    const headers = Object.keys(records[0]);
+    const headers = Object.keys(records[0] as Record<string, any>);
     const detected = detectFileType(fileName, headers);
 
     if (detected.type === 'unknown') {

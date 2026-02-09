@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
           columns: true,
           skip_empty_lines: true,
           trim: true,
-        });
+        }) as Record<string, any>[];
 
         if (records.length === 0) {
           results.push({
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Detect file type based on content (headers) - primary method
-        const headers = Object.keys(records[0]);
+        const headers = Object.keys(records[0] as Record<string, any>);
         const detected = detectFileType(file.name, headers);
 
         if (detected.type === 'unknown') {
@@ -105,9 +105,11 @@ export async function POST(request: NextRequest) {
           console.log(`[Upload] File queued for processing: ${tempFilePath} (ID: ${uploadId})`);
           
           // Process asynchronously (don't await - let it run in background)
-          processUpload(uploadId).catch((error) => {
-            console.error(`[Upload] Background processing failed for ${uploadId}:`, error);
-          });
+          if (uploadId !== null) {
+            processUpload(uploadId).catch((error) => {
+              console.error(`[Upload] Background processing failed for ${uploadId}:`, error);
+            });
+          }
           
         } catch (logError: any) {
           console.error(`[Upload] Failed to log upload for ${file.name}:`, logError);

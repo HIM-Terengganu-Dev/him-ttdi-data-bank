@@ -19,7 +19,6 @@ import {
 import {
   ingestTikTokBegBiruLeads,
   ingestWsapmeLeads,
-  ingestDeviceExportLeads,
 } from './leads-ingestion';
 
 export async function processUpload(uploadId: number): Promise<void> {
@@ -65,7 +64,7 @@ export async function processUpload(uploadId: number): Promise<void> {
       columns: true,
       skip_empty_lines: true,
       trim: true,
-    });
+    }) as Record<string, any>[];
 
     if (records.length === 0) {
       throw new Error('CSV file is empty or has no valid data');
@@ -104,7 +103,7 @@ export async function processUpload(uploadId: number): Promise<void> {
         if (file_name.toLowerCase().startsWith('device_')) {
           fileType = 'leads_device_export';
         } else {
-          const headers = Object.keys(records[0] || {});
+          const headers = Object.keys((records[0] as Record<string, any>) || {});
           const headersUpper = headers.map((h) => h.toUpperCase());
           if (headersUpper.includes('LEAD ID') && headersUpper.includes('USERNAME')) {
             fileType = 'leads_tiktok_beg_biru';
@@ -148,16 +147,8 @@ export async function processUpload(uploadId: number): Promise<void> {
         result = await ingestWsapmeLeads(pool, records, uploadId, tagIds, sourceIds);
         break;
       case 'leads_device_export':
-        result = await ingestDeviceExportLeads(pool, records, uploadId, sourceIds, tagIds);
-        break;
-      case 'leads_device_export':
-        // Assuming ingestDeviceExportLeads is imported. If not I need to verify imports.
-        // Wait, process-upload.ts didn't have leads_device_export in the case switch before?
-        // Let's check the previous file content. It had `leads_wsapme`. 
-        // Ah, I need to check if I need to add leads_device_export case here as well.
-        // The previous file content shows `leads` case in determination logic but split into `leads_tiktok_beg_biru` and `leads_wsapme`.
-        // I need to add logic to detect `leads_device_export` too in the detection block.
-        // For now let's just update the existing calls.
+        // Device export files are treated as Wsapme format (variable headers, requires source)
+        result = await ingestWsapmeLeads(pool, records, uploadId, [], []);
         break;
       default:
         throw new Error(`Unsupported file type: ${fileType}`);
