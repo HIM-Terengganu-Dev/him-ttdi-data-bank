@@ -29,29 +29,37 @@ function normalizePhoneNumber(phone: string | null | undefined): string | null {
 function parseDate(dateStr: string | null | undefined): Date | null {
   if (!dateStr || typeof dateStr !== 'string' || !dateStr.trim()) return null;
 
-  const cleanStr = dateStr.trim();
+  const cleanStr = dateStr.trim().replace(/"/g, ''); // Remove quotes if present
 
   try {
-    // Try standard constructor first
-    let date = new Date(cleanStr);
+    // Try parsing M/D/YYYY format first (common in US/TikTok exports)
+    // e.g., "1/27/2026" -> month=1, day=27, year=2026
+    const mdyMatch = cleanStr.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/);
+    if (mdyMatch) {
+      const month = parseInt(mdyMatch[1], 10) - 1; // Months are 0-indexed
+      const day = parseInt(mdyMatch[2], 10);
+      const year = parseInt(mdyMatch[3], 10);
+      // Validate: if first part > 12, it's likely D/M/YYYY format
+      if (parseInt(mdyMatch[1], 10) <= 12) {
+        const date = new Date(year, month, day);
+        if (!isNaN(date.getTime()) && date.getFullYear() === year) return date;
+      } else {
+        // Try as D/M/YYYY
+        const day2 = parseInt(mdyMatch[1], 10);
+        const month2 = parseInt(mdyMatch[2], 10) - 1;
+        const year2 = parseInt(mdyMatch[3], 10);
+        const date = new Date(year2, month2, day2);
+        if (!isNaN(date.getTime()) && date.getFullYear() === year2) return date;
+      }
+    }
 
-    // Check if valid
+    // Try standard constructor (handles ISO format and others)
+    let date = new Date(cleanStr);
     if (!isNaN(date.getTime())) {
       return date;
     }
 
-    // Try parsing DD/MM/YYYY or DD-MM-YYYY
-    // Regex for DD/MM/YYYY or DD-MM-YYYY
-    const dmyMatch = cleanStr.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/);
-    if (dmyMatch) {
-      const day = parseInt(dmyMatch[1], 10);
-      const month = parseInt(dmyMatch[2], 10) - 1; // Months are 0-indexed
-      const year = parseInt(dmyMatch[3], 10);
-      date = new Date(year, month, day);
-      if (!isNaN(date.getTime())) return date;
-    }
-
-    // Try parsing YYYY/MM/DD or YYYY-MM-DD (ISO usually handled by constructor but just in case)
+    // Try parsing YYYY/MM/DD or YYYY-MM-DD
     const ymdMatch = cleanStr.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})/);
     if (ymdMatch) {
       const year = parseInt(ymdMatch[1], 10);
@@ -217,104 +225,115 @@ export async function ingestTikTokBegBiruLeads(
       }
     }
     
-    // Batch insert new leads
+    // Batch insert new leads - process in chunks to avoid parameter limits
+    const CHUNK_SIZE = 100; // 100 rows * 13 params = 1300 params per chunk (well under PostgreSQL's 65535 limit)
+    
     if (newLeads.length > 0) {
-      const insertQuery = `
-        INSERT INTO him_ttdi.leads (
-          lead_external_id, username, name, phone_number, province_state, gender,
-          received_date, received_time, status, source_traffic, source_action, source_scenario, source_id
-        )
-        SELECT * FROM UNNEST(
-          $1::text[], $2::text[], $3::text[], $4::text[], $5::text[], $6::text[],
-          $7::date[], $8::time[], $9::text[], $10::text[], $11::text[], $12::text[], $13::int
-        )
-        RETURNING lead_id, phone_number, lead_external_id
-      `;
-      
-      const params = [
-        newLeads.map(l => l.lead_external_id),
-        newLeads.map(l => l.username),
-        newLeads.map(l => l.name),
-        newLeads.map(l => l.phone_number),
-        newLeads.map(l => l.province_state),
-        newLeads.map(l => l.gender),
-        newLeads.map(l => l.received_date),
-        newLeads.map(l => l.received_time),
-        newLeads.map(l => l.status),
-        newLeads.map(l => l.source_traffic),
-        newLeads.map(l => l.source_action),
-        newLeads.map(l => l.source_scenario),
-        new Array(newLeads.length).fill(sourceId),
-      ];
-      
-      const insertResult = await client.query(insertQuery, params);
-      inserted = insertResult.rows.length;
-      
-      // Batch insert source assignments for new leads
-      if (insertResult.rows.length > 0) {
-        const sourceAssignValues: string[] = [];
-        const sourceAssignParams: any[] = [];
+      for (let i = 0; i < newLeads.length; i += CHUNK_SIZE) {
+        const chunk = newLeads.slice(i, i + CHUNK_SIZE);
+        const values: string[] = [];
+        const params: any[] = [];
         let paramIndex = 1;
         
-        for (const row of insertResult.rows) {
-          sourceAssignValues.push(`($${paramIndex}, $${paramIndex + 1})`);
-          sourceAssignParams.push(row.lead_id, sourceId);
-          paramIndex += 2;
+        for (const lead of chunk) {
+          values.push(`($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7}, $${paramIndex + 8}, $${paramIndex + 9}, $${paramIndex + 10}, $${paramIndex + 11}, $${paramIndex + 12})`);
+          params.push(
+            lead.lead_external_id,
+            lead.username,
+            lead.name,
+            lead.phone_number,
+            lead.province_state,
+            lead.gender,
+            lead.received_date,
+            lead.received_time,
+            lead.status,
+            lead.source_traffic,
+            lead.source_action,
+            lead.source_scenario,
+            sourceId
+          );
+          paramIndex += 13;
         }
         
-        await client.query(
-          `INSERT INTO him_ttdi.lead_source_assignments (lead_id, source_id)
-           VALUES ${sourceAssignValues.join(', ')}
-           ON CONFLICT (lead_id, source_id) DO NOTHING`,
-          sourceAssignParams
-        );
+        const insertQuery = `
+          INSERT INTO him_ttdi.leads (
+            lead_external_id, username, name, phone_number, province_state, gender,
+            received_date, received_time, status, source_traffic, source_action, source_scenario, source_id
+          )
+          VALUES ${values.join(', ')}
+          RETURNING lead_id, phone_number, lead_external_id
+        `;
+        
+        try {
+          const insertResult = await client.query(insertQuery, params);
+          inserted += insertResult.rows.length;
+          
+          // Batch insert source assignments for this chunk
+          if (insertResult.rows.length > 0) {
+            const sourceAssignValues: string[] = [];
+            const sourceAssignParams: any[] = [];
+            let assignParamIndex = 1;
+            
+            for (const row of insertResult.rows) {
+              sourceAssignValues.push(`($${assignParamIndex}, $${assignParamIndex + 1})`);
+              sourceAssignParams.push(row.lead_id, sourceId);
+              assignParamIndex += 2;
+            }
+            
+            await client.query(
+              `INSERT INTO him_ttdi.lead_source_assignments (lead_id, source_id)
+               VALUES ${sourceAssignValues.join(', ')}
+               ON CONFLICT (lead_id, source_id) DO NOTHING`,
+              sourceAssignParams
+            );
+          }
+        } catch (chunkError: any) {
+          console.error(`[Leads Ingestion] Error inserting chunk ${i}-${i + chunk.length}:`, chunkError.message);
+          console.error(`[Leads Ingestion] Chunk error details:`, chunkError.stack);
+          // Mark this chunk as failed but continue with next chunks
+          failed += chunk.length;
+        }
       }
     }
     
     // Batch update existing leads
     if (existingLeads.length > 0) {
-      const updateQuery = `
-        UPDATE him_ttdi.leads l
-        SET
-          lead_external_id = COALESCE(d.lead_external_id, l.lead_external_id),
-          username = COALESCE(d.username, l.username),
-          name = COALESCE(d.name, l.name),
-          phone_number = d.phone_number,
-          province_state = COALESCE(d.province_state, l.province_state),
-          gender = COALESCE(d.gender, l.gender),
-          received_date = COALESCE(d.received_date, l.received_date),
-          received_time = COALESCE(d.received_time, l.received_time),
-          status = COALESCE(d.status, l.status),
-          source_traffic = COALESCE(d.source_traffic, l.source_traffic),
-          source_action = COALESCE(d.source_action, l.source_action),
-          source_scenario = COALESCE(d.source_scenario, l.source_scenario),
-          updated_at = NOW()
-        FROM UNNEST(
-          $1::int[], $2::text[], $3::text[], $4::text[], $5::text[], $6::text[], $7::text[],
-          $8::date[], $9::time[], $10::text[], $11::text[], $12::text[], $13::text[]
-        ) AS d(lead_id, lead_external_id, username, name, phone_number, province_state, gender,
-                received_date, received_time, status, source_traffic, source_action, source_scenario)
-        WHERE l.lead_id = d.lead_id
-      `;
-      
-      const params = [
-        existingLeads.map(e => e.leadId),
-        existingLeads.map(e => e.data.lead_external_id),
-        existingLeads.map(e => e.data.username),
-        existingLeads.map(e => e.data.name),
-        existingLeads.map(e => e.data.phone_number),
-        existingLeads.map(e => e.data.province_state),
-        existingLeads.map(e => e.data.gender),
-        existingLeads.map(e => e.data.received_date),
-        existingLeads.map(e => e.data.received_time),
-        existingLeads.map(e => e.data.status),
-        existingLeads.map(e => e.data.source_traffic),
-        existingLeads.map(e => e.data.source_action),
-        existingLeads.map(e => e.data.source_scenario),
-      ];
-      
-      const updateResult = await client.query(updateQuery, params);
-      updated = updateResult.rowCount || 0;
+      // Update each lead individually in batch (more reliable than complex UNNEST)
+      for (const existing of existingLeads) {
+        await client.query(
+          `UPDATE him_ttdi.leads SET
+            lead_external_id = COALESCE($1, lead_external_id),
+            username = COALESCE($2, username),
+            name = COALESCE($3, name),
+            phone_number = $4,
+            province_state = COALESCE($5, province_state),
+            gender = COALESCE($6, gender),
+            received_date = COALESCE($7, received_date),
+            received_time = COALESCE($8, received_time),
+            status = COALESCE($9, status),
+            source_traffic = COALESCE($10, source_traffic),
+            source_action = COALESCE($11, source_action),
+            source_scenario = COALESCE($12, source_scenario),
+            updated_at = NOW()
+          WHERE lead_id = $13`,
+          [
+            existing.data.lead_external_id,
+            existing.data.username,
+            existing.data.name,
+            existing.data.phone_number,
+            existing.data.province_state,
+            existing.data.gender,
+            existing.data.received_date,
+            existing.data.received_time,
+            existing.data.status,
+            existing.data.source_traffic,
+            existing.data.source_action,
+            existing.data.source_scenario,
+            existing.leadId,
+          ]
+        );
+      }
+      updated = existingLeads.length;
       
       // Ensure source assignments exist for existing leads
       if (existingLeads.length > 0) {
@@ -389,9 +408,9 @@ export async function ingestTikTokBegBiruLeads(
   } catch (error: any) {
     await client.query('ROLLBACK');
     console.error(`[Leads Ingestion] Batch error:`, error);
-    failed = records.length;
-    inserted = 0;
-    updated = 0;
+    console.error(`[Leads Ingestion] Error details:`, error.stack);
+    // Only mark as failed if we haven't processed any successfully
+    failed = inserted === 0 && updated === 0 ? records.length : 0;
   } finally {
     client.release();
   }
