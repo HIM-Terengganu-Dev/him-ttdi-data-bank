@@ -247,9 +247,8 @@ export default function LeadsUpload({ onUpload, isUploading }: LeadsUploadProps)
   const toggleTag = (fileName: string, tagId: number) => {
     setSelectedTags((prev) => {
       const current = prev[fileName] || [];
-      const updated = current.includes(tagId)
-        ? current.filter((id) => id !== tagId)
-        : [...current, tagId];
+      // Single selection: if clicking the same tag, deselect it; otherwise, select only this tag
+      const updated = current.includes(tagId) ? [] : [tagId];
       return { ...prev, [fileName]: updated };
     });
     // Auto-fill input field with tag name when clicked
@@ -262,9 +261,8 @@ export default function LeadsUpload({ onUpload, isUploading }: LeadsUploadProps)
   const toggleSource = (fileName: string, sourceId: number) => {
     setSelectedSources((prev) => {
       const current = prev[fileName] || [];
-      const updated = current.includes(sourceId)
-        ? current.filter((id) => id !== sourceId)
-        : [...current, sourceId];
+      // Single selection: if clicking the same source, deselect it; otherwise, select only this source
+      const updated = current.includes(sourceId) ? [] : [sourceId];
       return { ...prev, [fileName]: updated };
     });
     // Auto-fill input field with source name when clicked
@@ -551,8 +549,8 @@ export default function LeadsUpload({ onUpload, isUploading }: LeadsUploadProps)
                                 key={tag.tag_id}
                                 onClick={() => toggleTag(fileName, tag.tag_id)}
                                 className={`px-2 py-0.5 rounded text-xs transition-colors ${(selectedTags[fileName] || []).includes(tag.tag_id)
-                                  ? 'bg-blue-100 text-blue-700 border border-blue-200'
-                                  : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
+                                  ? 'bg-blue-600 text-white border border-blue-600'
+                                  : 'bg-gray-200 text-gray-700 border border-gray-300 hover:bg-gray-300'
                                   }`}
                               >
                                 {tag.tag_name}
@@ -589,8 +587,8 @@ export default function LeadsUpload({ onUpload, isUploading }: LeadsUploadProps)
                                 key={source.source_id}
                                 onClick={() => toggleSource(fileName, source.source_id)}
                                 className={`px-2 py-0.5 rounded text-xs transition-colors ${(selectedSources[fileName] || []).includes(source.source_id)
-                                  ? 'bg-blue-100 text-blue-700 border border-blue-200'
-                                  : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
+                                  ? 'bg-blue-600 text-white border border-blue-600'
+                                  : 'bg-gray-200 text-gray-700 border border-gray-300 hover:bg-gray-300'
                                   }`}
                               >
                                 {source.source_name}
