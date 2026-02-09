@@ -90,12 +90,45 @@ export async function POST(request: NextRequest) {
 
         const uploadId = uploadResult.rows[0].upload_id;
 
-        results.push({
-          fileName: file.name,
-          success: true,
-          status: 'processing',
-          message: 'File processed successfully'
-        });
+        // Process the file directly from memory (better for serverless)
+        // Parse the file content here since we already have it in memory
+        let recordsToProcess: Record<string, any>[];
+        const isExcelFile = file.name.toLowerCase().endsWith('.xlsx') || file.name.toLowerCase().endsWith('.xls');
+        
+        if (isExcelFile) {
+          const { parseExcelFile } = await import('@/lib/excel/parser');
+          const excelResult = parseExcelFile(buffer);
+          recordsToProcess = excelResult.records;
+        } else {
+          recordsToProcess = records || parse(buffer.toString('utf-8'), {
+            columns: true,
+            skip_empty_lines: true,
+            trim: true,
+            relax_column_count: true,
+          }) as Record<string, any>[];
+        }
+
+        console.log(`[Upload] Processing file: ${file.name} (ID: ${uploadId})`);
+
+        // Process synchronously to ensure completion in serverless environment
+        try {
+          await processUploadDirect(uploadId, recordsToProcess, detected.type, fileMetadata.tagIds, fileMetadata.sourceIds);
+          results.push({
+            fileName: file.name,
+            success: true,
+            status: 'success',
+            message: 'File processed successfully'
+          });
+        } catch (error: any) {
+          console.error(`[Upload] Processing failed for ${uploadId}:`, error);
+          // Status will be updated to 'failed' by processUploadDirect
+          results.push({
+            fileName: file.name,
+            success: false,
+            status: 'failed',
+            error: error.message || 'Processing failed'
+          });
+        }
 
       } catch (error: any) {
         console.error(`Error processing file ${file.name}:`, error);

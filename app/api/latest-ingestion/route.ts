@@ -39,6 +39,7 @@ export async function GET(request: Request) {
     const latestIngestions = await Promise.all(
       fileTypes.map(async (fileType) => {
         // Find latest upload for this table (including processing/queued status)
+        // Use AT TIME ZONE to ensure we get UTC timestamp
         const result = await pool.query(
           `SELECT 
             upload_id,
@@ -49,7 +50,7 @@ export async function GET(request: Request) {
             rows_updated,
             rows_failed,
             upload_status,
-            uploaded_at,
+            uploaded_at AT TIME ZONE 'UTC' as uploaded_at,
             error_message
           FROM him_ttdi.csv_uploads
           WHERE table_name = $1
@@ -85,12 +86,20 @@ export async function GET(request: Request) {
         }
 
         // Convert timestamp to ISO string to ensure proper timezone handling
-        // PostgreSQL timestamps are in UTC, convert to ISO format
-        const uploadedAt = upload.uploaded_at 
-          ? (upload.uploaded_at instanceof Date 
-              ? upload.uploaded_at.toISOString() 
-              : new Date(upload.uploaded_at).toISOString())
-          : null;
+        // PostgreSQL TIMESTAMP WITH TIME ZONE returns in UTC, but we need to ensure proper conversion
+        let uploadedAt: string | null = null;
+        if (upload.uploaded_at) {
+          // Handle both Date objects and string timestamps from PostgreSQL
+          if (upload.uploaded_at instanceof Date) {
+            uploadedAt = upload.uploaded_at.toISOString();
+          } else {
+            // PostgreSQL returns timestamps as strings, parse and convert to ISO
+            const date = new Date(upload.uploaded_at);
+            // If the string doesn't have timezone info, PostgreSQL might be returning it in server timezone
+            // Force conversion to UTC by using toISOString
+            uploadedAt = date.toISOString();
+          }
+        }
 
         return {
           fileType: fileType.displayName,
