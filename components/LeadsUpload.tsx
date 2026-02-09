@@ -252,6 +252,11 @@ export default function LeadsUpload({ onUpload, isUploading }: LeadsUploadProps)
         : [...current, tagId];
       return { ...prev, [fileName]: updated };
     });
+    // Auto-fill input field with tag name when clicked
+    const tag = tags.find(t => t.tag_id === tagId);
+    if (tag) {
+      setNewTagName(tag.tag_name);
+    }
   };
 
   const toggleSource = (fileName: string, sourceId: number) => {
@@ -262,6 +267,11 @@ export default function LeadsUpload({ onUpload, isUploading }: LeadsUploadProps)
         : [...current, sourceId];
       return { ...prev, [fileName]: updated };
     });
+    // Auto-fill input field with source name when clicked
+    const source = sources.find(s => s.source_id === sourceId);
+    if (source) {
+      setNewSourceName(source.source_name);
+    }
   };
 
   const handleAddTag = async (fileName: string) => {
@@ -555,7 +565,7 @@ export default function LeadsUpload({ onUpload, isUploading }: LeadsUploadProps)
                               value={newTagName}
                               onChange={(e) => setNewTagName(e.target.value)}
                               placeholder="New tag"
-                              className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded"
+                              className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded text-black"
                               onKeyPress={(e) => e.key === 'Enter' && handleAddTag(fileName)}
                             />
                             <button
@@ -593,7 +603,7 @@ export default function LeadsUpload({ onUpload, isUploading }: LeadsUploadProps)
                               value={newSourceName}
                               onChange={(e) => setNewSourceName(e.target.value)}
                               placeholder="New source"
-                              className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded"
+                              className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded text-black"
                               onKeyPress={(e) => e.key === 'Enter' && handleAddSource(fileName)}
                             />
                             <button
