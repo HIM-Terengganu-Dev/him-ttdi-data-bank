@@ -7,6 +7,7 @@ import { Pool } from 'pg';
 import * as fs from 'fs';
 import { parse } from 'csv-parse/sync';
 import { getPool } from '@/lib/db/client';
+import { parseExcelFile } from '@/lib/excel/parser';
 import {
   ingestPatientDetails,
   ingestConsultations,
@@ -40,8 +41,20 @@ export async function processUpload(uploadId: number): Promise<void> {
     const upload = uploadResult.rows[0];
     const { file_name, file_path, table_name, metadata } = upload;
 
-    // Extract metadata
-    const { tagIds = [], sourceIds = [] } = metadata || {};
+    // Extract metadata (parse if it's a JSON string)
+    let parsedMetadata: { tagIds?: number[], sourceIds?: number[] } = {};
+    if (metadata) {
+      if (typeof metadata === 'string') {
+        try {
+          parsedMetadata = JSON.parse(metadata);
+        } catch (e) {
+          console.error(`[Process] Failed to parse metadata JSON:`, e);
+        }
+      } else {
+        parsedMetadata = metadata;
+      }
+    }
+    const { tagIds = [], sourceIds = [] } = parsedMetadata;
 
     console.log(`[Process] Processing: ${file_name} (ID: ${uploadId})`);
 
@@ -58,16 +71,25 @@ export async function processUpload(uploadId: number): Promise<void> {
       throw new Error(`File not found: ${file_path}`);
     }
 
-    // Read and parse CSV
-    const fileContent = fs.readFileSync(file_path, 'utf-8');
-    const records = parse(fileContent, {
-      columns: true,
-      skip_empty_lines: true,
-      trim: true,
-    }) as Record<string, any>[];
+    // Read and parse file (CSV or Excel)
+    const isExcel = file_path.toLowerCase().endsWith('.xlsx') || file_path.toLowerCase().endsWith('.xls');
+    let records: Record<string, any>[];
+    
+    if (isExcel) {
+      const buffer = fs.readFileSync(file_path);
+      const excelResult = parseExcelFile(buffer);
+      records = excelResult.records;
+    } else {
+      const fileContent = fs.readFileSync(file_path, 'utf-8');
+      records = parse(fileContent, {
+        columns: true,
+        skip_empty_lines: true,
+        trim: true,
+      }) as Record<string, any>[];
+    }
 
     if (records.length === 0) {
-      throw new Error('CSV file is empty or has no valid data');
+      throw new Error('File is empty or has no valid data');
     }
 
     // Determine file type from table_name
@@ -93,6 +115,12 @@ export async function processUpload(uploadId: number): Promise<void> {
         break;
       case 'daily_doctor_sales':
         fileType = 'daily_doctor_sales';
+        break;
+      case 'leads_tiktok_beg_biru':
+        fileType = 'leads_tiktok_beg_biru';
+        break;
+      case 'leads_wsapme':
+        fileType = 'leads_wsapme';
         break;
       case 'leads':
         // Need to determine if it's TikTok Beg Biru or Wsapme or Device Export

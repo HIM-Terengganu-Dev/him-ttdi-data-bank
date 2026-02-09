@@ -10,6 +10,7 @@ import { parse } from 'csv-parse/sync';
 import * as fs from 'fs';
 import * as path from 'path';
 import { processUpload } from '@/lib/ingestion/process-upload';
+import { readExcelHeaders } from '@/lib/excel/parser';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300; // 5 minutes
@@ -43,10 +44,17 @@ export async function POST(request: NextRequest) {
         // For detection, we can just peek headers or filename.
         // LeadsUpload.tsx already detects it client side, but we should verify.
 
+        // Check if it's an Excel file
+        const isExcel = file.name.toLowerCase().endsWith('.xlsx') || file.name.toLowerCase().endsWith('.xls');
+        
         // Simple detection based on filename for Device Export, else parse headers
         if (file.name.toLowerCase().startsWith('device_')) {
-          detected = { type: 'leads_device_export', tableName: 'leads', displayName: 'Device Export' };
+          detected = { type: 'leads_device_export', tableName: 'leads_wsapme', displayName: 'Device Export' };
           // We don't parse content here if we don't need to. processUpload will parse.
+        } else if (isExcel) {
+          // Parse Excel headers
+          const headers = readExcelHeaders(buffer);
+          detected = detectFileType(file.name, headers);
         } else {
           // Parse CSV headers
           const fileContent = buffer.toString('utf-8');
@@ -63,6 +71,14 @@ export async function POST(request: NextRequest) {
         // Get tags and sources for this specific file
         const fileMetadata = metadata[file.name] || { tagIds: [], sourceIds: [] };
 
+        // Determine the specific table name based on detected type
+        let tableName = 'leads';
+        if (detected.type === 'leads_tiktok_beg_biru') {
+          tableName = 'leads_tiktok_beg_biru';
+        } else if (detected.type === 'leads_wsapme' || detected.type === 'leads_device_export') {
+          tableName = 'leads_wsapme';
+        }
+
         // Save file to temporary location
         const uploadsDir = path.join(process.cwd(), 'data-files', 'leads', 'uploads');
         if (!fs.existsSync(uploadsDir)) {
@@ -74,9 +90,9 @@ export async function POST(request: NextRequest) {
         const uploadResult = await pool.query(
           `INSERT INTO him_ttdi.csv_uploads 
            (file_name, table_name, rows_processed, upload_status, uploaded_at, metadata)
-           VALUES ($1, 'leads', 0, 'queued', NOW(), $2)
+           VALUES ($1, $2, 0, 'queued', NOW(), $3)
            RETURNING upload_id`,
-          [file.name, JSON.stringify(fileMetadata)]
+          [file.name, tableName, JSON.stringify(fileMetadata)]
         );
 
         const uploadId = uploadResult.rows[0].upload_id;
