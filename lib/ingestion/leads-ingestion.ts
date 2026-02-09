@@ -450,6 +450,41 @@ export async function ingestWsapmeLeads(
     throw new Error('Wsapme file must contain "phone" and "name" columns');
   }
 
+  // Get or create "None" source and tag for defaults
+  // Wsapme is NOT a source - it's a secondary lead source
+  // The actual source should be user input (e.g., "Meta Ads", "Organic", etc.)
+  // If user doesn't provide source/tag, default to "None"
+  let noneSourceId: number;
+  let noneTagId: number;
+  
+  const noneSourceResult = await pool.query(
+    `SELECT source_id FROM him_ttdi.lead_sources WHERE source_name = 'None'`
+  );
+  if (noneSourceResult.rows.length === 0) {
+    const insertResult = await pool.query(
+      `INSERT INTO him_ttdi.lead_sources (source_name) VALUES ('None') RETURNING source_id`
+    );
+    noneSourceId = insertResult.rows[0].source_id;
+  } else {
+    noneSourceId = noneSourceResult.rows[0].source_id;
+  }
+  
+  const noneTagResult = await pool.query(
+    `SELECT tag_id FROM him_ttdi.lead_tags WHERE tag_name = 'None'`
+  );
+  if (noneTagResult.rows.length === 0) {
+    const insertResult = await pool.query(
+      `INSERT INTO him_ttdi.lead_tags (tag_name) VALUES ('None') RETURNING tag_id`
+    );
+    noneTagId = insertResult.rows[0].tag_id;
+  } else {
+    noneTagId = noneTagResult.rows[0].tag_id;
+  }
+
+  // IMPORTANT: Only default to "None" for NEW leads that have no existing sources/tags
+  // For existing leads, we'll check if they already have sources/tags before assigning "None"
+  // This prevents overwriting existing sources (e.g., "Tiktok Beg Biru") with "None"
+
   // Optimize: Use batch operations for much faster ingestion (100x speed improvement)
   // Process all records in a single transaction with batch operations
   const client = await pool.connect();
@@ -515,87 +550,129 @@ export async function ingestWsapmeLeads(
     
     // Get all lead IDs for tag/source assignments (both new and existing)
     const allLeadsResult = await client.query(
-      `SELECT lead_id, phone_number FROM him_ttdi.leads WHERE phone_number = ANY($1)`,
+      `SELECT lead_id, phone_number, source_id FROM him_ttdi.leads WHERE phone_number = ANY($1)`,
       [phoneArray]
     );
     const leadIdMap = new Map<string, number>();
+    const leadSourceIdMap = new Map<number, number | null>(); // lead_id -> current source_id
     for (const row of allLeadsResult.rows) {
       leadIdMap.set(row.phone_number, row.lead_id);
+      leadSourceIdMap.set(row.lead_id, row.source_id);
     }
 
-    // Batch insert tag assignments
-    if (selectedTagIds.length > 0) {
-      const tagValues: string[] = [];
-      const tagParams: any[] = [];
-      let tagParamIndex = 1;
+    // Get existing source/tag assignments for all leads to check if they already have sources/tags
+    const leadIds = Array.from(leadIdMap.values());
+    const existingSourcesResult = await client.query(
+      `SELECT DISTINCT lead_id FROM him_ttdi.lead_source_assignments WHERE lead_id = ANY($1)`,
+      [leadIds]
+    );
+    const existingTagsResult = await client.query(
+      `SELECT DISTINCT lead_id FROM him_ttdi.lead_tag_assignments WHERE lead_id = ANY($1)`,
+      [leadIds]
+    );
+    const leadsWithSources = new Set(existingSourcesResult.rows.map(r => r.lead_id));
+    const leadsWithTags = new Set(existingTagsResult.rows.map(r => r.lead_id));
+
+    // Determine which source/tag IDs to use for each lead
+    // Only assign "None" if:
+    // 1. User didn't select any source/tag AND
+    // 2. Lead doesn't already have any sources/tags
+    const tagValues: string[] = [];
+    const tagParams: any[] = [];
+    let tagParamIndex = 1;
+    
+    const sourceValues: string[] = [];
+    const sourceParams: any[] = [];
+    let sourceParamIndex = 1;
+    
+    const leadsNeedingPrimarySourceUpdate: number[] = [];
+    
+    for (const lead of leadsData) {
+      const leadId = leadIdMap.get(lead.phoneNumber);
+      if (!leadId) continue;
       
-      for (const lead of leadsData) {
-        const leadId = leadIdMap.get(lead.phoneNumber);
-        if (leadId) {
-          for (const tagId of selectedTagIds) {
-            tagValues.push(`($${tagParamIndex}, $${tagParamIndex + 1})`);
-            tagParams.push(leadId, tagId);
-            tagParamIndex += 2;
-          }
+      // Handle tags
+      if (selectedTagIds.length > 0) {
+        // User selected tags - assign them
+        for (const tagId of selectedTagIds) {
+          tagValues.push(`($${tagParamIndex}, $${tagParamIndex + 1})`);
+          tagParams.push(leadId, tagId);
+          tagParamIndex += 2;
+        }
+      } else if (!leadsWithTags.has(leadId)) {
+        // User didn't select tags AND lead has no existing tags - assign "None"
+        tagValues.push(`($${tagParamIndex}, $${tagParamIndex + 1})`);
+        tagParams.push(leadId, noneTagId);
+        tagParamIndex += 2;
+      }
+      // If user didn't select and lead already has tags, do nothing (preserve existing)
+      
+      // Handle sources
+      if (selectedSourceIds.length > 0) {
+        // User selected sources - assign them
+        for (const sourceId of selectedSourceIds) {
+          sourceValues.push(`($${sourceParamIndex}, $${sourceParamIndex + 1})`);
+          sourceParams.push(leadId, sourceId);
+          sourceParamIndex += 2;
+        }
+        // Track leads that need primary source_id update (only if currently NULL)
+        if (!leadSourceIdMap.get(leadId)) {
+          leadsNeedingPrimarySourceUpdate.push(leadId);
+        }
+      } else if (!leadsWithSources.has(leadId)) {
+        // User didn't select sources AND lead has no existing sources - assign "None"
+        sourceValues.push(`($${sourceParamIndex}, $${sourceParamIndex + 1})`);
+        sourceParams.push(leadId, noneSourceId);
+        sourceParamIndex += 2;
+        // Track for primary source_id update (only if currently NULL)
+        if (!leadSourceIdMap.get(leadId)) {
+          leadsNeedingPrimarySourceUpdate.push(leadId);
         }
       }
-      
-      if (tagValues.length > 0) {
-        await client.query(
-          `INSERT INTO him_ttdi.lead_tag_assignments (lead_id, tag_id)
-           VALUES ${tagValues.join(', ')}
-           ON CONFLICT (lead_id, tag_id) DO NOTHING`,
-          tagParams
-        );
-      }
+      // If user didn't select and lead already has sources, do nothing (preserve existing)
+    }
+    
+    // Batch insert tag assignments
+    if (tagValues.length > 0) {
+      await client.query(
+        `INSERT INTO him_ttdi.lead_tag_assignments (lead_id, tag_id)
+         VALUES ${tagValues.join(', ')}
+         ON CONFLICT (lead_id, tag_id) DO NOTHING`,
+        tagParams
+      );
     }
 
     // Batch insert source assignments
-    if (selectedSourceIds.length > 0) {
-      const sourceValues: string[] = [];
-      const sourceParams: any[] = [];
-      let sourceParamIndex = 1;
-      
-      for (const lead of leadsData) {
-        const leadId = leadIdMap.get(lead.phoneNumber);
-        if (leadId) {
-          for (const sourceId of selectedSourceIds) {
-            sourceValues.push(`($${sourceParamIndex}, $${sourceParamIndex + 1})`);
-            sourceParams.push(leadId, sourceId);
-            sourceParamIndex += 2;
-          }
-        }
-      }
-      
-      if (sourceValues.length > 0) {
-        await client.query(
-          `INSERT INTO him_ttdi.lead_source_assignments (lead_id, source_id)
-           VALUES ${sourceValues.join(', ')}
-           ON CONFLICT (lead_id, source_id) DO NOTHING`,
-          sourceParams
-        );
-      }
+    if (sourceValues.length > 0) {
+      await client.query(
+        `INSERT INTO him_ttdi.lead_source_assignments (lead_id, source_id)
+         VALUES ${sourceValues.join(', ')}
+         ON CONFLICT (lead_id, source_id) DO NOTHING`,
+        sourceParams
+      );
+    }
 
-      // Batch update primary source_id
-      if (selectedSourceIds.length > 0 && leadsData.length > 0) {
-        const leadIds = Array.from(leadIdMap.values());
-        const updateValues: string[] = [];
-        const updateParams: any[] = [selectedSourceIds[0]];
-        let updateParamIndex = 2;
-        
-        for (const leadId of leadIds) {
-          updateValues.push(`$${updateParamIndex}`);
-          updateParams.push(leadId);
-          updateParamIndex++;
-        }
-        
-        await client.query(
-          `UPDATE him_ttdi.leads 
-           SET source_id = $1 
-           WHERE lead_id IN (${updateValues.join(', ')})`,
-          updateParams
-        );
+    // Only update primary source_id if:
+    // 1. Lead currently has NULL source_id AND
+    // 2. We're assigning a source (either user-selected or "None" for new leads)
+    if (leadsNeedingPrimarySourceUpdate.length > 0) {
+      const sourceIdToUse = selectedSourceIds.length > 0 ? selectedSourceIds[0] : noneSourceId;
+      const updateValues: string[] = [];
+      const updateParams: any[] = [sourceIdToUse];
+      let updateParamIndex = 2;
+      
+      for (const leadId of leadsNeedingPrimarySourceUpdate) {
+        updateValues.push(`$${updateParamIndex}`);
+        updateParams.push(leadId);
+        updateParamIndex++;
       }
+      
+      await client.query(
+        `UPDATE him_ttdi.leads 
+         SET source_id = $1 
+         WHERE lead_id IN (${updateValues.join(', ')}) AND source_id IS NULL`,
+        updateParams
+      );
     }
 
     await client.query('COMMIT');

@@ -526,11 +526,14 @@ export default function LeadsUpload({ onUpload, isUploading }: LeadsUploadProps)
                   {/* Per-file Settings */}
                   {isSourceRequired && !isUploading && fileWithType.status === 'pending' && (
                     <div className="mt-4 pl-8 border-t border-gray-100 pt-3">
+                      <p className="text-xs text-gray-500 mb-3">
+                        <strong>Note:</strong> Wsapme is a secondary lead source. Select the actual source (e.g., Meta Ads, Organic) and tags. If not selected, will default to "None".
+                      </p>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {/* Tags */}
                         <div>
                           <label className="block text-xs font-medium text-gray-500 mb-1">
-                            Tags
+                            Tags (Optional - defaults to "None")
                           </label>
                           <div className="flex flex-wrap gap-1 mb-2">
                             {tags.map((tag) => (
@@ -568,7 +571,7 @@ export default function LeadsUpload({ onUpload, isUploading }: LeadsUploadProps)
                         {/* Source */}
                         <div>
                           <label className="block text-xs font-medium text-gray-500 mb-1">
-                            Source (Optional)
+                            Source (Optional - defaults to "None")
                           </label>
                           <div className="flex flex-wrap gap-1 mb-2">
                             {sources.map((source) => (
