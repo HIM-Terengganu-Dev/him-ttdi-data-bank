@@ -4,7 +4,8 @@ import { useState } from 'react';
 import FileDropzone from '@/components/FileDropzone';
 import LeadsUpload from '@/components/LeadsUpload';
 import LatestIngestionReport from '@/components/LatestIngestionReport';
-import { Upload, RefreshCw, Users } from 'lucide-react';
+import { Upload, RefreshCw, Users, BarChart3, Download } from 'lucide-react';
+import Link from 'next/link';
 
 export default function Home() {
   const [isUploading, setIsUploading] = useState(false);
@@ -81,12 +82,32 @@ export default function Home() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Data Bank Dashboard
-          </h1>
-          <p className="text-gray-600">
-            Upload CSV files to import data into the database. Supports Remedii files and Leads data.
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                Data Bank Dashboard
+              </h1>
+              <p className="text-gray-600">
+                Upload CSV files to import data into the database. Supports Remedii files and Leads data.
+              </p>
+            </div>
+            <div className="flex space-x-3">
+              <Link
+                href="/leads-analytics"
+                className="flex items-center space-x-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+              >
+                <BarChart3 className="h-4 w-4" />
+                <span>Analytics</span>
+              </Link>
+              <Link
+                href="/leads-export"
+                className="flex items-center space-x-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+              >
+                <Download className="h-4 w-4" />
+                <span>Export</span>
+              </Link>
+            </div>
+          </div>
         </div>
 
         {/* Success Message */}
