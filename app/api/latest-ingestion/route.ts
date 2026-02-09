@@ -84,13 +84,21 @@ export async function GET(request: Request) {
           // Ignore date extraction errors
         }
 
+        // Convert timestamp to ISO string to ensure proper timezone handling
+        // PostgreSQL timestamps are in UTC, convert to ISO format
+        const uploadedAt = upload.uploaded_at 
+          ? (upload.uploaded_at instanceof Date 
+              ? upload.uploaded_at.toISOString() 
+              : new Date(upload.uploaded_at).toISOString())
+          : null;
+
         return {
           fileType: fileType.displayName,
           tableName: fileType.tableName,
           hasData: true,
           fileName: upload.file_name,
-          uploadedAt: upload.uploaded_at,
-          csvDate: csvDate,
+          uploadedAt: uploadedAt,
+          csvDate: csvDate ? (csvDate instanceof Date ? csvDate.toISOString() : new Date(csvDate).toISOString()) : null,
           rowsProcessed: upload.rows_processed,
           rowsInserted: upload.rows_inserted,
           rowsUpdated: upload.rows_updated,

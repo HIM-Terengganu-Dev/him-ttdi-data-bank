@@ -69,7 +69,12 @@ export default function LatestIngestionReport({ filter = 'all' }: LatestIngestio
   const formatDateTime = (dateStr: string | null | undefined) => {
     if (!dateStr) return 'N/A';
     try {
-      return format(new Date(dateStr), 'd MMM yyyy, h:mm a');
+      // Parse ISO date string (should be in UTC format from API)
+      // JavaScript Date will automatically convert UTC to local timezone
+      const date = new Date(dateStr);
+      
+      // Format in local timezone (date-fns format uses local timezone by default)
+      return format(date, 'd MMM yyyy, h:mm a');
     } catch {
       return 'Invalid date';
     }
