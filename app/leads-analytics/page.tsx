@@ -8,6 +8,7 @@ interface AnalyticsData {
     total_leads: string;
     existing_patients: string;
     non_patients: string;
+    total_patients?: string;
   };
   sources: Array<{ source_name: string; lead_count: string }>;
   tags: Array<{ tag_name: string; lead_count: string }>;
@@ -83,6 +84,7 @@ export default function LeadsAnalyticsPage() {
   const totalLeads = parseInt(data.overall.total_leads, 10);
   const existingPatients = parseInt(data.overall.existing_patients, 10);
   const nonPatients = parseInt(data.overall.non_patients, 10);
+  const totalPatients = data.overall.total_patients ? parseInt(data.overall.total_patients, 10) : 0;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -128,7 +130,8 @@ export default function LeadsAnalyticsPage() {
                 <p className="text-sm font-medium text-gray-600">Existing Patients</p>
                 <p className="text-3xl font-bold text-green-600 mt-2">{existingPatients.toLocaleString()}</p>
                 <p className="text-xs text-gray-500 mt-1">
-                  {totalLeads > 0 ? ((existingPatients / totalLeads) * 100).toFixed(1) : 0}% of total
+                  {totalLeads > 0 ? ((existingPatients / totalLeads) * 100).toFixed(1) : 0}% of leads
+                  {totalPatients > 0 && ` • ${totalPatients.toLocaleString()} total patients`}
                 </p>
               </div>
               <UserCheck className="h-12 w-12 text-green-600 opacity-20" />

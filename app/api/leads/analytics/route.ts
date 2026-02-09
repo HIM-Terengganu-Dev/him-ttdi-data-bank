@@ -14,13 +14,17 @@ export async function GET(request: Request) {
     const pool = getPool();
 
     // 1. Overall statistics
+    // Use normalized phone matching (digits only) to match leads to patients
     const overallStats = await pool.query(`
       SELECT 
         COUNT(DISTINCT l.lead_id) as total_leads,
         COUNT(DISTINCT CASE WHEN p.patient_id IS NOT NULL THEN l.lead_id END) as existing_patients,
-        COUNT(DISTINCT CASE WHEN p.patient_id IS NULL THEN l.lead_id END) as non_patients
+        COUNT(DISTINCT CASE WHEN p.patient_id IS NULL THEN l.lead_id END) as non_patients,
+        (SELECT COUNT(*) FROM him_ttdi.patients) as total_patients
       FROM him_ttdi.leads l
-      LEFT JOIN him_ttdi.patients p ON l.phone_number = p.phone_no
+      LEFT JOIN him_ttdi.patients p 
+        ON REGEXP_REPLACE(l.phone_number, '[^0-9]', '', 'g') = 
+           REGEXP_REPLACE(p.phone_no, '[^0-9]', '', 'g')
     `);
 
     // 2. Source distribution
@@ -53,7 +57,9 @@ export async function GET(request: Request) {
         COALESCE(p.gender, l.gender, 'Unknown') as gender,
         COUNT(DISTINCT l.lead_id) as lead_count
       FROM him_ttdi.leads l
-      LEFT JOIN him_ttdi.patients p ON l.phone_number = p.phone_no
+      LEFT JOIN him_ttdi.patients p 
+        ON REGEXP_REPLACE(l.phone_number, '[^0-9]', '', 'g') = 
+           REGEXP_REPLACE(p.phone_no, '[^0-9]', '', 'g')
       GROUP BY COALESCE(p.gender, l.gender, 'Unknown')
       ORDER BY lead_count DESC
     `);
@@ -85,7 +91,9 @@ export async function GET(request: Request) {
           END as age_group,
           COUNT(DISTINCT l.lead_id) as lead_count
         FROM him_ttdi.leads l
-        JOIN him_ttdi.patients p ON l.phone_number = p.phone_no
+        JOIN him_ttdi.patients p 
+          ON REGEXP_REPLACE(l.phone_number, '[^0-9]', '', 'g') = 
+             REGEXP_REPLACE(p.phone_no, '[^0-9]', '', 'g')
         GROUP BY 
           CASE 
             WHEN p.age IS NULL THEN 'Unknown'
