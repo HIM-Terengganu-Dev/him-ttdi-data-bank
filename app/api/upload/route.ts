@@ -7,10 +7,8 @@ import { getPool } from '@/lib/db/client';
 import { detectFileType } from '@/lib/csv/file-detector';
 import { extractDateFromCSVData } from '@/lib/csv/date-extractor';
 import { parse } from 'csv-parse/sync';
-import { Readable } from 'stream';
-import * as fs from 'fs';
-import * as path from 'path';
-import { processUpload } from '@/lib/ingestion/process-upload';
+// Removed fs and path imports - no longer saving files to disk
+// No longer importing processUpload - using processUploadDirect instead
 
 export const runtime = 'nodejs';
 export const maxDuration = 300; // 5 minutes
@@ -73,12 +71,6 @@ export async function POST(request: NextRequest) {
         let uploadId: number | null = null;
         
         try {
-          // Save file to temporary location first
-          const uploadsDir = path.join(process.cwd(), 'data-files', 'remedi', 'uploads');
-          if (!fs.existsSync(uploadsDir)) {
-            fs.mkdirSync(uploadsDir, { recursive: true });
-          }
-          
           // Create upload record first to get upload_id
           const uploadResult = await pool.query(
             `INSERT INTO him_ttdi.csv_uploads 
@@ -90,25 +82,17 @@ export async function POST(request: NextRequest) {
 
           uploadId = uploadResult.rows[0].upload_id;
           
-          // Save file with upload_id in filename
-          const tempFilePath = path.join(uploadsDir, `${uploadId}_${file.name}`);
-          fs.writeFileSync(tempFilePath, buffer);
+          console.log(`[Upload] Processing file: ${file.name} (ID: ${uploadId})`);
           
-          // Update with file path
-          await pool.query(
-            `UPDATE him_ttdi.csv_uploads 
-             SET file_path = $1
-             WHERE upload_id = $2`,
-            [tempFilePath, uploadId]
-          );
-          
-          console.log(`[Upload] File queued for processing: ${tempFilePath} (ID: ${uploadId})`);
-          
-          // Process asynchronously (don't await - let it run in background)
+          // Process synchronously from memory (better for serverless)
           if (uploadId !== null) {
-            processUpload(uploadId).catch((error) => {
-              console.error(`[Upload] Background processing failed for ${uploadId}:`, error);
-            });
+            const { processUploadDirect } = await import('@/lib/ingestion/process-upload');
+            try {
+              await processUploadDirect(uploadId, records, detected.type, [], []);
+            } catch (error: any) {
+              console.error(`[Upload] Processing failed for ${uploadId}:`, error);
+              // Status will be updated to 'failed' by processUploadDirect
+            }
           }
           
         } catch (logError: any) {

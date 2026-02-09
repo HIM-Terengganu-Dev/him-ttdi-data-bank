@@ -7,8 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getPool } from '@/lib/db/client';
 import { detectFileType } from '@/lib/csv/file-detector';
 import { parse } from 'csv-parse/sync';
-import * as fs from 'fs';
-import * as path from 'path';
+// Removed fs and path imports - no longer saving files to disk
 import { processUploadDirect } from '@/lib/ingestion/process-upload';
 import { readExcelHeaders } from '@/lib/excel/parser';
 
@@ -79,12 +78,6 @@ export async function POST(request: NextRequest) {
           tableName = 'leads_wsapme';
         }
 
-        // Save file to temporary location
-        const uploadsDir = path.join(process.cwd(), 'data-files', 'leads', 'uploads');
-        if (!fs.existsSync(uploadsDir)) {
-          fs.mkdirSync(uploadsDir, { recursive: true });
-        }
-
         // Create upload record
         const pool = getPool();
         const uploadResult = await pool.query(
@@ -97,37 +90,11 @@ export async function POST(request: NextRequest) {
 
         const uploadId = uploadResult.rows[0].upload_id;
 
-        // Process the file directly from memory (better for serverless)
-        // Parse the file content here since we already have it in memory
-        let recordsToProcess: Record<string, any>[];
-        const isExcelFile = file.name.toLowerCase().endsWith('.xlsx') || file.name.toLowerCase().endsWith('.xls');
-        
-        if (isExcelFile) {
-          const { parseExcelFile } = await import('@/lib/excel/parser');
-          const excelResult = parseExcelFile(buffer);
-          recordsToProcess = excelResult.records;
-        } else {
-          recordsToProcess = records || parse(buffer.toString('utf-8'), {
-            columns: true,
-            skip_empty_lines: true,
-            trim: true,
-            relax_column_count: true,
-          }) as Record<string, any>[];
-        }
-
-        // Process synchronously to ensure completion in serverless environment
-        try {
-          await processUploadDirect(uploadId, recordsToProcess, detected.type, fileMetadata.tagIds, fileMetadata.sourceIds);
-        } catch (error: any) {
-          console.error(`[Upload] Processing failed for ${uploadId}:`, error);
-          // Status will be updated to 'failed' by processUploadDirect
-        }
-
         results.push({
           fileName: file.name,
           success: true,
-          status: 'queued',
-          message: 'File queued for background processing'
+          status: 'processing',
+          message: 'File processed successfully'
         });
 
       } catch (error: any) {
