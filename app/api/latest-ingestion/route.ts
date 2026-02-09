@@ -39,7 +39,7 @@ export async function GET(request: Request) {
     const latestIngestions = await Promise.all(
       fileTypes.map(async (fileType) => {
         // Find latest upload for this table (including processing/queued status)
-        // Convert timestamp to UTC explicitly to ensure correct timezone handling
+        // Get timestamp directly from database without timezone conversion
         const result = await pool.query(
           `SELECT 
             upload_id,
@@ -50,7 +50,7 @@ export async function GET(request: Request) {
             rows_updated,
             rows_failed,
             upload_status,
-            (uploaded_at AT TIME ZONE 'UTC')::text as uploaded_at,
+            uploaded_at,
             error_message
           FROM him_ttdi.csv_uploads
           WHERE table_name = $1
@@ -85,16 +85,24 @@ export async function GET(request: Request) {
           // Ignore date extraction errors
         }
 
-        // Use uploaded_at directly from csv_uploads table
-        // The timestamp is already converted to UTC text in the query
-        // Convert to ISO string for proper client-side timezone handling
+        // Use uploaded_at directly from csv_uploads table - timezone unaware
+        // Format it as a simple string without timezone conversion
+        // PostgreSQL returns it as a Date object, format it directly
         let uploadedAt: string | null = null;
         if (upload.uploaded_at) {
-          // Parse the UTC timestamp string and convert to ISO format
-          // The timestamp is already in UTC from the query
-          const date = new Date(upload.uploaded_at + 'Z'); // Ensure it's treated as UTC
-          if (!isNaN(date.getTime())) {
-            uploadedAt = date.toISOString();
+          // If it's a Date object, format it as ISO string but preserve the time
+          // We'll format it as YYYY-MM-DDTHH:mm:ss (without timezone)
+          if (upload.uploaded_at instanceof Date) {
+            const year = upload.uploaded_at.getFullYear();
+            const month = String(upload.uploaded_at.getMonth() + 1).padStart(2, '0');
+            const day = String(upload.uploaded_at.getDate()).padStart(2, '0');
+            const hours = String(upload.uploaded_at.getHours()).padStart(2, '0');
+            const minutes = String(upload.uploaded_at.getMinutes()).padStart(2, '0');
+            const seconds = String(upload.uploaded_at.getSeconds()).padStart(2, '0');
+            uploadedAt = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+          } else {
+            // If it's a string, use it as-is
+            uploadedAt = String(upload.uploaded_at);
           }
         }
 

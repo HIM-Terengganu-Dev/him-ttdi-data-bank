@@ -69,11 +69,22 @@ export default function LatestIngestionReport({ filter = 'all' }: LatestIngestio
   const formatDateTime = (dateStr: string | null | undefined) => {
     if (!dateStr) return 'N/A';
     try {
-      // Parse ISO date string (should be in UTC format from API)
-      // JavaScript Date will automatically convert UTC to local timezone
-      const date = new Date(dateStr);
+      // Parse the timestamp string - it's timezone unaware (just YYYY-MM-DDTHH:mm:ss)
+      // Parse it as local time without timezone conversion
+      let date: Date;
+      if (dateStr.includes('T') && !dateStr.includes('Z') && !dateStr.includes('+') && !dateStr.includes('-', 10)) {
+        // It's in format YYYY-MM-DDTHH:mm:ss (timezone unaware)
+        // Parse it as local time
+        const [datePart, timePart] = dateStr.split('T');
+        const [year, month, day] = datePart.split('-').map(Number);
+        const [hours, minutes, seconds] = timePart.split(':').map(Number);
+        date = new Date(year, month - 1, day, hours, minutes, seconds || 0);
+      } else {
+        // It's an ISO string with timezone, parse normally
+        date = new Date(dateStr);
+      }
       
-      // Format in local timezone (date-fns format uses local timezone by default)
+      // Format in local timezone (date-fns uses local timezone by default)
       return format(date, 'd MMM yyyy, h:mm a');
     } catch {
       return 'Invalid date';
