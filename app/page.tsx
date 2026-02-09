@@ -185,7 +185,7 @@ export default function Home() {
                       <li>• TikTok Beg Biru - Standard format with consistent headers</li>
                       <li>• Wsapme - Requires "phone" and "name" columns (headers may vary)</li>
                     </ul>
-                    <p className="text-xs text-blue-700 mt-2 italic">
+                    <p className="text-xs text-blue-700 mt-2">
                       Note: For Wsapme files, you must select at least one source. Tags are optional.
                     </p>
                   </div>

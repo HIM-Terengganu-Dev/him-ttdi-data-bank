@@ -535,7 +535,7 @@ export default function LeadsUpload({ onUpload, isUploading }: LeadsUploadProps)
                   {isSourceRequired && !isUploading && fileWithType.status === 'pending' && (
                     <div className="mt-4 pl-8 border-t border-gray-100 pt-3">
                       <p className="text-xs text-gray-500 mb-3">
-                        <strong>Note:</strong> Wsapme is a secondary lead source. Select the actual source (e.g., Meta Ads, Organic) and tags. If not selected, will default to "None".
+                        <strong>Note:</strong> For Wsapme files, you must select at least one source. Tags are optional.
                       </p>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {/* Tags */}
