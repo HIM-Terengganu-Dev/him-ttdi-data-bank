@@ -284,14 +284,15 @@ export function detectFileTypeByFilename(fileName: string): DetectedFile | null 
     };
   }
 
-  // Device Export Leads - treat as Wsapme format (variable headers)
-  if (fileNameUpper.startsWith('DEVICE_')) {
+  // Wsapme Leads - detect by filename prefix (wsapme or device)
+  // This takes priority over content-based detection for Wsapme files
+  if (fileNameUpper.startsWith('WSAPME') || fileNameUpper.startsWith('DEVICE')) {
     return {
       type: 'leads_wsapme',
-      tableName: 'leads',
-      displayName: 'Leads - Wsapme (Device Export)',
+      tableName: 'leads_wsapme',
+      displayName: 'Leads - Wsapme',
       fileName,
-      confidence: 'medium',
+      confidence: 'high',
     };
   }
 
@@ -299,10 +300,24 @@ export function detectFileTypeByFilename(fileName: string): DetectedFile | null 
 }
 
 /**
- * Main detection function - prioritizes content over filename
+ * Main detection function - prioritizes filename for Wsapme, content for others
  */
 export function detectFileType(fileName: string, headers?: string[]): DetectedFile {
-  // First, try content-based detection (most reliable)
+  const fileNameUpper = fileName.toUpperCase();
+  
+  // Special case: Wsapme files detected by filename prefix (takes priority)
+  // If filename starts with "wsapme" or "device", treat as Wsapme regardless of headers
+  if (fileNameUpper.startsWith('WSAPME') || fileNameUpper.startsWith('DEVICE')) {
+    return {
+      type: 'leads_wsapme',
+      tableName: 'leads_wsapme',
+      displayName: 'Leads - Wsapme',
+      fileName,
+      confidence: 'high',
+    };
+  }
+
+  // For other files, try content-based detection first (most reliable)
   if (headers && headers.length > 0) {
     const contentDetection = detectFileTypeByContent(headers);
     if (contentDetection) {
