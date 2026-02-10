@@ -58,6 +58,21 @@ export default function LatestIngestionReport({ filter = 'all' }: LatestIngestio
   };
 
   const formatDate = (dateStr: string | null | undefined) => {
+    // If dateStr is already in YYYY-MM-DD format (timezone-blind from database), parse it directly
+    if (!dateStr) return 'N/A';
+    
+    // Check if it's already in YYYY-MM-DD format (from database, timezone-blind)
+    const yyyymmddMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (yyyymmddMatch) {
+      // Parse as local date without timezone conversion
+      const year = parseInt(yyyymmddMatch[1], 10);
+      const month = parseInt(yyyymmddMatch[2], 10) - 1; // month is 0-indexed
+      const day = parseInt(yyyymmddMatch[3], 10);
+      const date = new Date(year, month, day);
+      return format(date, 'd MMM yyyy');
+    }
+    
+    // Fallback to original parsing for other formats
     if (!dateStr) return 'N/A';
     try {
       return format(new Date(dateStr), 'd MMM yyyy');

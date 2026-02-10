@@ -69,20 +69,36 @@ export async function GET(request: Request) {
 
         const upload = result.rows[0];
 
-        // Try to get CSV date from the most recent data in the table
-        // This is a simplified approach - you might want to store CSV date in csv_uploads table
-        let csvDate: Date | null = null;
+        // Get CSV date directly from database, timezone-blind
+        // Query returns date as text in YYYY-MM-DD format
+        let csvDate: string | null = null;
         
         try {
           const dateQuery = getDateQueryForTable(fileType.tableName);
           if (dateQuery) {
             const dateResult = await pool.query(dateQuery);
             if (dateResult.rows.length > 0 && dateResult.rows[0].max_date) {
-              csvDate = dateResult.rows[0].max_date;
+              const dbDate = dateResult.rows[0].max_date;
+              // PostgreSQL returns date as text in YYYY-MM-DD format (timezone-blind)
+              if (typeof dbDate === 'string') {
+                // Extract just the date part (YYYY-MM-DD) - should already be in this format
+                csvDate = dbDate.split('T')[0].split(' ')[0];
+              } else if (dbDate instanceof Date) {
+                // Fallback: if it's a Date object, format as YYYY-MM-DD without timezone conversion
+                const year = dbDate.getFullYear();
+                const month = String(dbDate.getMonth() + 1).padStart(2, '0');
+                const day = String(dbDate.getDate()).padStart(2, '0');
+                csvDate = `${year}-${month}-${day}`;
+              } else {
+                // Convert to string and extract date part
+                const dateStr = String(dbDate);
+                csvDate = dateStr.split('T')[0].split(' ')[0];
+              }
             }
           }
         } catch (err) {
           // Ignore date extraction errors
+          console.error('Error extracting CSV date:', err);
         }
 
         // Use uploaded_at directly from csv_uploads table - timezone unaware
@@ -112,7 +128,7 @@ export async function GET(request: Request) {
           hasData: true,
           fileName: upload.file_name,
           uploadedAt: uploadedAt,
-          csvDate: csvDate ? (csvDate instanceof Date ? csvDate.toISOString() : new Date(csvDate).toISOString()) : null,
+          csvDate: csvDate, // Already formatted as YYYY-MM-DD string, timezone-blind
           rowsProcessed: upload.rows_processed,
           rowsInserted: upload.rows_inserted,
           rowsUpdated: upload.rows_updated,
@@ -136,25 +152,30 @@ export async function GET(request: Request) {
 }
 
 function getDateQueryForTable(tableName: string): string | null {
+  // Get MAX date to represent the CSV data date range end (e.g., "till 31st Jan 2026")
+  // Use DATE() to ensure timezone-blind date extraction
+  // Cast to DATE to remove time component and timezone
   switch (tableName) {
     case 'patients':
-      return `SELECT MAX(first_visit_date) as max_date FROM him_ttdi.patients WHERE first_visit_date IS NOT NULL`;
+      return `SELECT MAX(DATE(first_visit_date))::text as max_date FROM him_ttdi.patients WHERE first_visit_date IS NOT NULL`;
     case 'consultations':
-      return `SELECT MAX(visit_date) as max_date FROM him_ttdi.consultations WHERE visit_date IS NOT NULL`;
+      return `SELECT MAX(DATE(visit_date))::text as max_date FROM him_ttdi.consultations WHERE visit_date IS NOT NULL`;
     case 'procedure_prescriptions':
-      return `SELECT MAX(prescription_date) as max_date FROM him_ttdi.procedure_prescriptions WHERE prescription_date IS NOT NULL`;
+      // Get MAX date from procedure prescriptions (represents "till" date in CSV)
+      // Use DATE() to extract date part only, timezone-blind
+      return `SELECT MAX(DATE(prescription_date))::text as max_date FROM him_ttdi.procedure_prescriptions WHERE prescription_date IS NOT NULL`;
     case 'medicine_prescriptions':
-      return `SELECT MAX(prescription_date) as max_date FROM him_ttdi.medicine_prescriptions WHERE prescription_date IS NOT NULL`;
+      return `SELECT MAX(DATE(prescription_date))::text as max_date FROM him_ttdi.medicine_prescriptions WHERE prescription_date IS NOT NULL`;
     case 'itemized_sales':
-      return `SELECT MAX(visit_date) as max_date FROM him_ttdi.itemized_sales WHERE visit_date IS NOT NULL`;
+      return `SELECT MAX(DATE(visit_date))::text as max_date FROM him_ttdi.itemized_sales WHERE visit_date IS NOT NULL`;
     case 'invoices':
-      return `SELECT MAX(invoice_date::date) as max_date FROM him_ttdi.invoices WHERE invoice_date IS NOT NULL`;
+      return `SELECT MAX(DATE(invoice_date))::text as max_date FROM him_ttdi.invoices WHERE invoice_date IS NOT NULL`;
     case 'daily_doctor_sales':
-      return `SELECT MAX(sale_date) as max_date FROM him_ttdi.daily_doctor_sales WHERE sale_date IS NOT NULL`;
+      return `SELECT MAX(DATE(sale_date))::text as max_date FROM him_ttdi.daily_doctor_sales WHERE sale_date IS NOT NULL`;
     case 'leads_tiktok_beg_biru':
     case 'leads_wsapme':
     case 'leads':
-      return `SELECT MAX(created_at::date) as max_date FROM him_ttdi.leads WHERE created_at IS NOT NULL`;
+      return `SELECT MAX(DATE(created_at))::text as max_date FROM him_ttdi.leads WHERE created_at IS NOT NULL`;
     default:
       return null;
   }
