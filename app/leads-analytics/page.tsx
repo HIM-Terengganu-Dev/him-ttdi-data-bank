@@ -10,13 +10,22 @@ interface AnalyticsData {
     non_patients: string;
     total_patients?: string;
   };
-  sources: Array<{ source_name: string; lead_count: string }>;
+  sources: Array<{ source_name: string; lead_count: string; patient_count: string; conversion_rate: string }>;
   tags: Array<{ tag_name: string; lead_count: string }>;
   gender: Array<{ gender: string; lead_count: string }>;
-  provinces: Array<{ province_state: string; lead_count: string }>;
+  provinces: Array<{ province_state: string; lead_count: string; patient_count: string; conversion_rate: string }>;
   ageGroups: Array<{ age_group: string; lead_count: string }>;
-  leadTrend: Array<{ date: Date; lead_count: string }>;
+  leadTrend: Array<{ date: string | Date; lead_count: string; patient_count: string }>;
   status: Array<{ status: string; lead_count: string }>;
+  patientValue: {
+    total_patients: string;
+    avg_visits_per_patient: string;
+    max_visits: string;
+    returning_patients: string;
+    new_patients_30d: string;
+    new_patients_90d: string;
+  };
+  monthlyTrend: Array<{ month: string; lead_count: string; patient_count: string }>;
 }
 
 export default function LeadsAnalyticsPage() {
@@ -112,68 +121,138 @@ export default function LeadsAnalyticsPage() {
           </div>
         </div>
 
-        {/* Overall Statistics */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow p-6">
+        {/* Overall Statistics - CEO Focus */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-lg p-6 text-white">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Total Leads</p>
-                <p className="text-3xl font-bold text-gray-900 mt-2">{totalLeads.toLocaleString()}</p>
+                <p className="text-sm font-medium text-blue-100">Total Leads</p>
+                <p className="text-4xl font-bold mt-2">{totalLeads.toLocaleString()}</p>
               </div>
-              <Users className="h-12 w-12 text-blue-600 opacity-20" />
+              <Users className="h-12 w-12 text-blue-200 opacity-50" />
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-lg p-6 text-white">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Existing Patients</p>
-                <p className="text-3xl font-bold text-green-600 mt-2">{existingPatients.toLocaleString()}</p>
-                <p className="text-xs text-gray-500 mt-1">
-                  {totalLeads > 0 ? ((existingPatients / totalLeads) * 100).toFixed(1) : 0}% of leads
-                  {totalPatients > 0 && ` • ${totalPatients.toLocaleString()} total patients`}
+                <p className="text-sm font-medium text-green-100">Conversion Rate</p>
+                <p className="text-4xl font-bold mt-2">
+                  {totalLeads > 0 ? ((existingPatients / totalLeads) * 100).toFixed(1) : 0}%
+                </p>
+                <p className="text-xs text-green-100 mt-1">
+                  {existingPatients.toLocaleString()} patients from {totalLeads.toLocaleString()} leads
                 </p>
               </div>
-              <UserCheck className="h-12 w-12 text-green-600 opacity-20" />
+              <TrendingUp className="h-12 w-12 text-green-200 opacity-50" />
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-lg shadow-lg p-6 text-white">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Non-Patients</p>
-                <p className="text-3xl font-bold text-orange-600 mt-2">{nonPatients.toLocaleString()}</p>
-                <p className="text-xs text-gray-500 mt-1">
-                  {totalLeads > 0 ? ((nonPatients / totalLeads) * 100).toFixed(1) : 0}% of total
+                <p className="text-sm font-medium text-emerald-100">Existing Patients</p>
+                <p className="text-4xl font-bold mt-2">{existingPatients.toLocaleString()}</p>
+                <p className="text-xs text-emerald-100 mt-1">
+                  {totalPatients > 0 && `${totalPatients.toLocaleString()} total in system`}
                 </p>
               </div>
-              <UserX className="h-12 w-12 text-orange-600 opacity-20" />
+              <UserCheck className="h-12 w-12 text-emerald-200 opacity-50" />
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg shadow-lg p-6 text-white">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-orange-100">Non-Patients</p>
+                <p className="text-4xl font-bold mt-2">{nonPatients.toLocaleString()}</p>
+                <p className="text-xs text-orange-100 mt-1">
+                  {totalLeads > 0 ? ((nonPatients / totalLeads) * 100).toFixed(1) : 0}% unconverted
+                </p>
+              </div>
+              <UserX className="h-12 w-12 text-orange-200 opacity-50" />
             </div>
           </div>
         </div>
 
+        {/* Patient Value Metrics - CEO Focus */}
+        {data.patientValue && (
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+            <div className="bg-white rounded-lg shadow p-4">
+              <p className="text-xs font-medium text-gray-500 uppercase">Avg Visits</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">
+                {parseFloat(data.patientValue.avg_visits_per_patient || '0').toFixed(1)}
+              </p>
+            </div>
+            <div className="bg-white rounded-lg shadow p-4">
+              <p className="text-xs font-medium text-gray-500 uppercase">Max Visits</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">
+                {parseInt(data.patientValue.max_visits || '0', 10).toLocaleString()}
+              </p>
+            </div>
+            <div className="bg-white rounded-lg shadow p-4">
+              <p className="text-xs font-medium text-gray-500 uppercase">Returning</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">
+                {parseInt(data.patientValue.returning_patients || '0', 10).toLocaleString()}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                {data.patientValue.total_patients && 
+                  `${((parseInt(data.patientValue.returning_patients || '0', 10) / parseInt(data.patientValue.total_patients, 10)) * 100).toFixed(1)}% retention`
+                }
+              </p>
+            </div>
+            <div className="bg-white rounded-lg shadow p-4">
+              <p className="text-xs font-medium text-gray-500 uppercase">New (30d)</p>
+              <p className="text-2xl font-bold text-green-600 mt-1">
+                {parseInt(data.patientValue.new_patients_30d || '0', 10).toLocaleString()}
+              </p>
+            </div>
+            <div className="bg-white rounded-lg shadow p-4">
+              <p className="text-xs font-medium text-gray-500 uppercase">New (90d)</p>
+              <p className="text-2xl font-bold text-green-600 mt-1">
+                {parseInt(data.patientValue.new_patients_90d || '0', 10).toLocaleString()}
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {/* Source Distribution */}
+          {/* Source Performance - CEO Focus (Conversion Rates) */}
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
               <PieChart className="h-5 w-5 mr-2 text-blue-600" />
-              Source Distribution
+              Source Performance (ROI)
             </h2>
+            <p className="text-xs text-gray-500 mb-4">Shows conversion rate: Leads → Patients</p>
             <div className="space-y-3">
               {data.sources.map((source, index) => {
-                const count = parseInt(source.lead_count, 10);
-                const percentage = totalLeads > 0 ? (count / totalLeads) * 100 : 0;
+                const leadCount = parseInt(source.lead_count, 10);
+                const patientCount = parseInt(source.patient_count || '0', 10);
+                const conversionRate = parseFloat(source.conversion_rate || '0');
+                const percentage = totalLeads > 0 ? (leadCount / totalLeads) * 100 : 0;
                 return (
-                  <div key={index}>
+                  <div key={index} className="border-l-4 border-blue-500 pl-3">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-medium text-gray-700">{source.source_name}</span>
-                      <span className="text-sm text-gray-600">{count.toLocaleString()}</span>
+                      <div>
+                        <span className="text-sm font-semibold text-gray-900">{source.source_name}</span>
+                        <span className="text-xs text-gray-500 ml-2">
+                          {conversionRate}% conversion
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-sm font-medium text-gray-900">{patientCount.toLocaleString()}</span>
+                        <span className="text-xs text-gray-500"> / {leadCount.toLocaleString()}</span>
+                      </div>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div
                         className="bg-blue-600 h-2 rounded-full transition-all"
                         style={{ width: `${percentage}%` }}
                       />
+                    </div>
+                    <div className="flex justify-between mt-1">
+                      <span className="text-xs text-gray-500">{patientCount} patients</span>
+                      <span className="text-xs text-gray-500">{leadCount} leads</span>
                     </div>
                   </div>
                 );
@@ -240,18 +319,29 @@ export default function LeadsAnalyticsPage() {
             </div>
           </div>
 
-          {/* Province/State Distribution */}
+          {/* Province/State Performance - CEO Focus */}
           <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Top Provinces/States</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Top Provinces/States Performance</h2>
+            <p className="text-xs text-gray-500 mb-4">By patient conversion</p>
             <div className="space-y-3">
               {data.provinces.map((province, index) => {
-                const count = parseInt(province.lead_count, 10);
-                const percentage = totalLeads > 0 ? (count / totalLeads) * 100 : 0;
+                const leadCount = parseInt(province.lead_count, 10);
+                const patientCount = parseInt(province.patient_count || '0', 10);
+                const conversionRate = parseFloat(province.conversion_rate || '0');
+                const percentage = totalLeads > 0 ? (leadCount / totalLeads) * 100 : 0;
                 return (
-                  <div key={index}>
+                  <div key={index} className="border-l-4 border-indigo-500 pl-3">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-medium text-gray-700">{province.province_state}</span>
-                      <span className="text-sm text-gray-600">{count.toLocaleString()}</span>
+                      <div>
+                        <span className="text-sm font-semibold text-gray-900">{province.province_state}</span>
+                        <span className="text-xs text-gray-500 ml-2">
+                          {conversionRate}% conversion
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-sm font-medium text-gray-900">{patientCount.toLocaleString()}</span>
+                        <span className="text-xs text-gray-500"> / {leadCount.toLocaleString()}</span>
+                      </div>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div
@@ -320,32 +410,90 @@ export default function LeadsAnalyticsPage() {
           </div>
         )}
 
-        {/* Lead Trend */}
+        {/* Monthly Growth Trend - CEO Focus */}
+        {data.monthlyTrend && data.monthlyTrend.length > 0 && (
+          <div className="bg-white rounded-lg shadow p-6 mb-8">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+              <TrendingUp className="h-5 w-5 mr-2 text-blue-600" />
+              Monthly Growth Trend (Last 12 Months)
+            </h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+              {data.monthlyTrend.map((item, index) => {
+                const leadCount = parseInt(item.lead_count, 10);
+                const patientCount = parseInt(item.patient_count || '0', 10);
+                const conversionRate = leadCount > 0 ? ((patientCount / leadCount) * 100).toFixed(1) : '0';
+                const prevMonth = index < data.monthlyTrend.length - 1 ? data.monthlyTrend[index + 1] : null;
+                const growth = prevMonth ? 
+                  ((patientCount - parseInt(prevMonth.patient_count || '0', 10)) / parseInt(prevMonth.patient_count || '1', 10) * 100).toFixed(1) 
+                  : null;
+                
+                return (
+                  <div key={index} className="border rounded-lg p-3 hover:shadow-md transition-shadow">
+                    <p className="text-xs font-medium text-gray-500 mb-2">
+                      {new Date(item.month + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                    </p>
+                    <p className="text-2xl font-bold text-gray-900">{patientCount.toLocaleString()}</p>
+                    <p className="text-xs text-gray-500 mt-1">patients</p>
+                    <p className="text-xs text-gray-400 mt-1">{leadCount} leads ({conversionRate}%)</p>
+                    {growth && (
+                      <p className={`text-xs mt-1 font-medium ${parseFloat(growth) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {parseFloat(growth) >= 0 ? '↑' : '↓'} {Math.abs(parseFloat(growth))}%
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Daily Lead Trend */}
         {data.leadTrend.length > 0 && (
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
               <TrendingUp className="h-5 w-5 mr-2 text-blue-600" />
-              Lead Creation Trend (Last 30 Days)
+              Daily Lead & Patient Trend (Last 30 Days)
             </h2>
-            <div className="flex items-end space-x-2 h-64">
+            <div className="flex items-end space-x-1 h-64">
               {data.leadTrend.map((item, index) => {
-                const count = parseInt(item.lead_count, 10);
-                const maxCount = Math.max(...data.leadTrend.map(t => parseInt(t.lead_count, 10)));
-                const height = maxCount > 0 ? (count / maxCount) * 100 : 0;
+                const leadCount = parseInt(item.lead_count, 10);
+                const patientCount = parseInt(item.patient_count || '0', 10);
+                const maxCount = Math.max(...data.leadTrend.map(t => Math.max(
+                  parseInt(t.lead_count, 10), 
+                  parseInt(t.patient_count || '0', 10)
+                )));
+                const leadHeight = maxCount > 0 ? (leadCount / maxCount) * 100 : 0;
+                const patientHeight = maxCount > 0 ? (patientCount / maxCount) * 100 : 0;
                 return (
-                  <div key={index} className="flex-1 flex flex-col items-center">
-                    <div className="w-full bg-gray-200 rounded-t" style={{ height: `${100 - height}%` }} />
-                    <div
-                      className="w-full bg-blue-600 rounded-t transition-all hover:bg-blue-700"
-                      style={{ height: `${height}%` }}
-                      title={`${new Date(item.date).toLocaleDateString()}: ${count} leads`}
-                    />
-                    <span className="text-xs text-gray-500 mt-2 transform -rotate-45 origin-top-left whitespace-nowrap">
+                  <div key={index} className="flex-1 flex flex-col items-center group">
+                    <div className="w-full relative" style={{ height: '100%' }}>
+                      <div className="w-full bg-gray-200 rounded-t absolute bottom-0" style={{ height: `${100 - leadHeight}%` }} />
+                      <div
+                        className="w-full bg-blue-400 rounded-t absolute bottom-0 transition-all hover:bg-blue-500"
+                        style={{ height: `${leadHeight}%` }}
+                        title={`${new Date(item.date).toLocaleDateString()}: ${leadCount} leads, ${patientCount} patients`}
+                      />
+                      <div
+                        className="w-full bg-green-500 rounded-t absolute bottom-0 transition-all hover:bg-green-600 opacity-80"
+                        style={{ height: `${patientHeight}%`, width: '60%', left: '20%' }}
+                      />
+                    </div>
+                    <span className="text-xs text-gray-500 mt-2 transform -rotate-45 origin-top-left whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
                       {new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                     </span>
                   </div>
                 );
               })}
+            </div>
+            <div className="flex items-center justify-center space-x-4 mt-4">
+              <div className="flex items-center">
+                <div className="w-4 h-4 bg-blue-400 rounded mr-2"></div>
+                <span className="text-xs text-gray-600">Leads</span>
+              </div>
+              <div className="flex items-center">
+                <div className="w-4 h-4 bg-green-500 rounded mr-2"></div>
+                <span className="text-xs text-gray-600">Patients</span>
+              </div>
             </div>
           </div>
         )}

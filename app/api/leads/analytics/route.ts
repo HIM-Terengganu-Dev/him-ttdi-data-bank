@@ -27,16 +27,26 @@ export async function GET(request: Request) {
            REGEXP_REPLACE(p.phone_no, '[^0-9]', '', 'g')
     `);
 
-    // 2. Source distribution
+    // 2. Source distribution with conversion rates (CEO-focused)
     const sourceDistribution = await pool.query(`
       SELECT 
         ls.source_name,
-        COUNT(DISTINCT lsa.lead_id) as lead_count
+        COUNT(DISTINCT lsa.lead_id) as lead_count,
+        COUNT(DISTINCT CASE WHEN p.patient_id IS NOT NULL THEN lsa.lead_id END) as patient_count,
+        CASE 
+          WHEN COUNT(DISTINCT lsa.lead_id) > 0 
+          THEN ROUND((COUNT(DISTINCT CASE WHEN p.patient_id IS NOT NULL THEN lsa.lead_id END)::NUMERIC / COUNT(DISTINCT lsa.lead_id)) * 100, 1)
+          ELSE 0
+        END as conversion_rate
       FROM him_ttdi.lead_sources ls
       LEFT JOIN him_ttdi.lead_source_assignments lsa ON ls.source_id = lsa.source_id
       LEFT JOIN him_ttdi.leads l ON lsa.lead_id = l.lead_id
+      LEFT JOIN him_ttdi.patients p 
+        ON REGEXP_REPLACE(l.phone_number, '[^0-9]', '', 'g') = 
+           REGEXP_REPLACE(p.phone_no, '[^0-9]', '', 'g')
       GROUP BY ls.source_name
-      ORDER BY lead_count DESC
+      HAVING COUNT(DISTINCT lsa.lead_id) > 0
+      ORDER BY patient_count DESC, conversion_rate DESC
     `);
 
     // 3. Tag distribution
@@ -64,14 +74,24 @@ export async function GET(request: Request) {
       ORDER BY lead_count DESC
     `);
 
-    // 5. Province/State distribution
+    // 5. Province/State distribution with conversion rates
     const provinceDistribution = await pool.query(`
       SELECT 
         COALESCE(l.province_state, 'Unknown') as province_state,
-        COUNT(DISTINCT l.lead_id) as lead_count
+        COUNT(DISTINCT l.lead_id) as lead_count,
+        COUNT(DISTINCT CASE WHEN p.patient_id IS NOT NULL THEN l.lead_id END) as patient_count,
+        CASE 
+          WHEN COUNT(DISTINCT l.lead_id) > 0 
+          THEN ROUND((COUNT(DISTINCT CASE WHEN p.patient_id IS NOT NULL THEN l.lead_id END)::NUMERIC / COUNT(DISTINCT l.lead_id)) * 100, 1)
+          ELSE 0
+        END as conversion_rate
       FROM him_ttdi.leads l
+      LEFT JOIN him_ttdi.patients p 
+        ON REGEXP_REPLACE(l.phone_number, '[^0-9]', '', 'g') = 
+           REGEXP_REPLACE(p.phone_no, '[^0-9]', '', 'g')
       GROUP BY l.province_state
-      ORDER BY lead_count DESC
+      HAVING COUNT(DISTINCT l.lead_id) > 0
+      ORDER BY patient_count DESC
       LIMIT 10
     `);
 
@@ -120,15 +140,47 @@ export async function GET(request: Request) {
         END
     `);
 
-    // 7. Lead creation trend (by date)
+    // 7. Lead creation trend (by date) with patient conversion
     const leadTrend = await pool.query(`
       SELECT 
         DATE(l.created_at) as date,
-        COUNT(DISTINCT l.lead_id) as lead_count
+        COUNT(DISTINCT l.lead_id) as lead_count,
+        COUNT(DISTINCT CASE WHEN p.patient_id IS NOT NULL THEN l.lead_id END) as patient_count
       FROM him_ttdi.leads l
+      LEFT JOIN him_ttdi.patients p 
+        ON REGEXP_REPLACE(l.phone_number, '[^0-9]', '', 'g') = 
+           REGEXP_REPLACE(p.phone_no, '[^0-9]', '', 'g')
       GROUP BY DATE(l.created_at)
       ORDER BY date DESC
       LIMIT 30
+    `);
+
+    // 9. Patient value metrics (CEO-focused)
+    const patientValueMetrics = await pool.query(`
+      SELECT 
+        COUNT(DISTINCT p.patient_id) as total_patients,
+        AVG(p.visit_total) as avg_visits_per_patient,
+        MAX(p.visit_total) as max_visits,
+        COUNT(DISTINCT CASE WHEN p.visit_total >= 2 THEN p.patient_id END) as returning_patients,
+        COUNT(DISTINCT CASE WHEN p.first_visit_date >= CURRENT_DATE - INTERVAL '30 days' THEN p.patient_id END) as new_patients_30d,
+        COUNT(DISTINCT CASE WHEN p.first_visit_date >= CURRENT_DATE - INTERVAL '90 days' THEN p.patient_id END) as new_patients_90d
+      FROM him_ttdi.patients p
+    `);
+
+    // 10. Monthly growth trend
+    const monthlyTrend = await pool.query(`
+      SELECT 
+        TO_CHAR(DATE_TRUNC('month', l.created_at), 'YYYY-MM') as month,
+        COUNT(DISTINCT l.lead_id) as lead_count,
+        COUNT(DISTINCT CASE WHEN p.patient_id IS NOT NULL THEN l.lead_id END) as patient_count
+      FROM him_ttdi.leads l
+      LEFT JOIN him_ttdi.patients p 
+        ON REGEXP_REPLACE(l.phone_number, '[^0-9]', '', 'g') = 
+           REGEXP_REPLACE(p.phone_no, '[^0-9]', '', 'g')
+      WHERE l.created_at >= CURRENT_DATE - INTERVAL '12 months'
+      GROUP BY DATE_TRUNC('month', l.created_at)
+      ORDER BY month DESC
+      LIMIT 12
     `);
 
     // 8. Status distribution (for TikTok Beg Biru)
@@ -153,6 +205,8 @@ export async function GET(request: Request) {
         ageGroups: ageDistribution.rows,
         leadTrend: leadTrend.rows,
         status: statusDistribution.rows,
+        patientValue: patientValueMetrics.rows[0],
+        monthlyTrend: monthlyTrend.rows,
       },
     });
   } catch (error: any) {
