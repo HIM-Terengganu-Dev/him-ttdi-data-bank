@@ -80,34 +80,34 @@ async function investigateLeadsDatabase() {
     `);
     console.table(tags.rows);
     
-    // 6. Check patient age distribution (for existing patients)
+    // 6. Check patient age distribution (for existing patients) - calculated from date_of_birth
     console.log('\n6. Patient Age Distribution (for existing patients):');
     const ageDistribution = await pool.query(`
       WITH age_groups AS (
         SELECT 
           CASE 
-            WHEN p.age IS NULL THEN 'Unknown'
-            WHEN p.age < 18 THEN 'Under 18'
-            WHEN p.age BETWEEN 18 AND 25 THEN '18-25'
-            WHEN p.age BETWEEN 26 AND 35 THEN '26-35'
-            WHEN p.age BETWEEN 36 AND 45 THEN '36-45'
-            WHEN p.age BETWEEN 46 AND 55 THEN '46-55'
-            WHEN p.age BETWEEN 56 AND 65 THEN '56-65'
-            WHEN p.age > 65 THEN 'Over 65'
+            WHEN p.date_of_birth IS NULL THEN 'Unknown'
+            WHEN EXTRACT(YEAR FROM AGE(p.date_of_birth))::INTEGER < 18 THEN 'Under 18'
+            WHEN EXTRACT(YEAR FROM AGE(p.date_of_birth))::INTEGER BETWEEN 18 AND 25 THEN '18-25'
+            WHEN EXTRACT(YEAR FROM AGE(p.date_of_birth))::INTEGER BETWEEN 26 AND 35 THEN '26-35'
+            WHEN EXTRACT(YEAR FROM AGE(p.date_of_birth))::INTEGER BETWEEN 36 AND 45 THEN '36-45'
+            WHEN EXTRACT(YEAR FROM AGE(p.date_of_birth))::INTEGER BETWEEN 46 AND 55 THEN '46-55'
+            WHEN EXTRACT(YEAR FROM AGE(p.date_of_birth))::INTEGER BETWEEN 56 AND 65 THEN '56-65'
+            WHEN EXTRACT(YEAR FROM AGE(p.date_of_birth))::INTEGER > 65 THEN 'Over 65'
           END as age_group,
           COUNT(DISTINCT l.lead_id) as lead_count
         FROM him_ttdi.leads l
         JOIN him_ttdi.patients p ON l.phone_number = p.phone_no
         GROUP BY 
           CASE 
-            WHEN p.age IS NULL THEN 'Unknown'
-            WHEN p.age < 18 THEN 'Under 18'
-            WHEN p.age BETWEEN 18 AND 25 THEN '18-25'
-            WHEN p.age BETWEEN 26 AND 35 THEN '26-35'
-            WHEN p.age BETWEEN 36 AND 45 THEN '36-45'
-            WHEN p.age BETWEEN 46 AND 55 THEN '46-55'
-            WHEN p.age BETWEEN 56 AND 65 THEN '56-65'
-            WHEN p.age > 65 THEN 'Over 65'
+            WHEN p.date_of_birth IS NULL THEN 'Unknown'
+            WHEN EXTRACT(YEAR FROM AGE(p.date_of_birth))::INTEGER < 18 THEN 'Under 18'
+            WHEN EXTRACT(YEAR FROM AGE(p.date_of_birth))::INTEGER BETWEEN 18 AND 25 THEN '18-25'
+            WHEN EXTRACT(YEAR FROM AGE(p.date_of_birth))::INTEGER BETWEEN 26 AND 35 THEN '26-35'
+            WHEN EXTRACT(YEAR FROM AGE(p.date_of_birth))::INTEGER BETWEEN 36 AND 45 THEN '36-45'
+            WHEN EXTRACT(YEAR FROM AGE(p.date_of_birth))::INTEGER BETWEEN 46 AND 55 THEN '46-55'
+            WHEN EXTRACT(YEAR FROM AGE(p.date_of_birth))::INTEGER BETWEEN 56 AND 65 THEN '56-65'
+            WHEN EXTRACT(YEAR FROM AGE(p.date_of_birth))::INTEGER > 65 THEN 'Over 65'
           END
       )
       SELECT * FROM age_groups

@@ -279,51 +279,55 @@ export default function LeadsExportPage() {
                   </div>
                 </div>
 
-                {/* Sources */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Sources (Multiple Selection)
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {sources.map((source) => (
-                      <button
-                        key={source.source_id}
-                        onClick={() => toggleSource(source.source_id)}
-                        className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-                          selectedSourceIds.includes(source.source_id)
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                        }`}
-                      >
-                        {source.source_name}
-                      </button>
-                    ))}
+                {/* Sources - Only for non-patients or all */}
+                {(leadType === 'non_patients' || leadType === 'all') && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Sources (Multiple Selection)
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {sources.map((source) => (
+                        <button
+                          key={source.source_id}
+                          onClick={() => toggleSource(source.source_id)}
+                          className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                            selectedSourceIds.includes(source.source_id)
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                          }`}
+                        >
+                          {source.source_name}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
-                {/* Tags */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Tags (Multiple Selection)
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {tags.map((tag) => (
-                      <button
-                        key={tag.tag_id}
-                        onClick={() => toggleTag(tag.tag_id)}
-                        className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-                          selectedTagIds.includes(tag.tag_id)
-                            ? 'bg-green-600 text-white'
-                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                        }`}
-                      >
-                        {tag.tag_name}
-                      </button>
-                    ))}
+                {/* Tags - Only for non-patients or all */}
+                {(leadType === 'non_patients' || leadType === 'all') && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Tags (Multiple Selection)
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {tags.map((tag) => (
+                        <button
+                          key={tag.tag_id}
+                          onClick={() => toggleTag(tag.tag_id)}
+                          className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                            selectedTagIds.includes(tag.tag_id)
+                              ? 'bg-green-600 text-white'
+                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                          }`}
+                        >
+                          {tag.tag_name}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
-                {/* Gender */}
+                {/* Gender - Show for all types, but more relevant for existing patients */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Gender (Multiple Selection)
@@ -345,8 +349,8 @@ export default function LeadsExportPage() {
                   </div>
                 </div>
 
-                {/* Province/State */}
-                {availableProvinces.length > 0 && (
+                {/* Province/State - Only for non-patients or all */}
+                {availableProvinces.length > 0 && (leadType === 'non_patients' || leadType === 'all') && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Province/State (Multiple Selection)
@@ -458,33 +462,35 @@ export default function LeadsExportPage() {
                   </div>
                 ) : null}
 
-                {/* Lead Creation Date Range */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Lead Creation Date Range
-                  </label>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <input
-                        type="date"
-                        value={createdDateFrom}
-                        onChange={(e) => setCreatedDateFrom(e.target.value)}
-                        className="w-full border border-gray-300 rounded-md shadow-sm p-2 text-sm"
-                      />
-                    </div>
-                    <div>
-                      <input
-                        type="date"
-                        value={createdDateTo}
-                        onChange={(e) => setCreatedDateTo(e.target.value)}
-                        className="w-full border border-gray-300 rounded-md shadow-sm p-2 text-sm"
-                      />
+                {/* Lead Creation Date Range - Only for non-patients or all */}
+                {(leadType === 'non_patients' || leadType === 'all') && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Lead Creation Date Range
+                    </label>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <input
+                          type="date"
+                          value={createdDateFrom}
+                          onChange={(e) => setCreatedDateFrom(e.target.value)}
+                          className="w-full border border-gray-300 rounded-md shadow-sm p-2 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <input
+                          type="date"
+                          value={createdDateTo}
+                          onChange={(e) => setCreatedDateTo(e.target.value)}
+                          className="w-full border border-gray-300 rounded-md shadow-sm p-2 text-sm"
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
-                {/* Status (TikTok Beg Biru) */}
-                {availableStatuses.length > 0 && (
+                {/* Status (TikTok Beg Biru) - Only for non-patients or all */}
+                {availableStatuses.length > 0 && (leadType === 'non_patients' || leadType === 'all') && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Status (TikTok Beg Biru) - Multiple Selection
@@ -507,57 +513,61 @@ export default function LeadsExportPage() {
                   </div>
                 )}
 
-                {/* Source Traffic, Action, Scenario - Text inputs for now */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Source Traffic (TikTok Beg Biru) - Comma separated
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g., Organic, Paid"
-                    value={selectedSourceTraffic.join(', ')}
-                    onChange={(e) =>
-                      setSelectedSourceTraffic(
-                        e.target.value.split(',').map((s) => s.trim()).filter((s) => s)
-                      )
-                    }
-                    className="w-full border border-gray-300 rounded-md shadow-sm p-2 text-sm"
-                  />
-                </div>
+                {/* Source Traffic, Action, Scenario - Only for non-patients or all */}
+                {(leadType === 'non_patients' || leadType === 'all') && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Source Traffic (TikTok Beg Biru) - Comma separated
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g., Organic, Paid"
+                        value={selectedSourceTraffic.join(', ')}
+                        onChange={(e) =>
+                          setSelectedSourceTraffic(
+                            e.target.value.split(',').map((s) => s.trim()).filter((s) => s)
+                          )
+                        }
+                        className="w-full border border-gray-300 rounded-md shadow-sm p-2 text-sm"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Source Action (TikTok Beg Biru) - Comma separated
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g., Click, View"
-                    value={selectedSourceAction.join(', ')}
-                    onChange={(e) =>
-                      setSelectedSourceAction(
-                        e.target.value.split(',').map((s) => s.trim()).filter((s) => s)
-                      )
-                    }
-                    className="w-full border border-gray-300 rounded-md shadow-sm p-2 text-sm"
-                  />
-                </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Source Action (TikTok Beg Biru) - Comma separated
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g., Click, View"
+                        value={selectedSourceAction.join(', ')}
+                        onChange={(e) =>
+                          setSelectedSourceAction(
+                            e.target.value.split(',').map((s) => s.trim()).filter((s) => s)
+                          )
+                        }
+                        className="w-full border border-gray-300 rounded-md shadow-sm p-2 text-sm"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Source Scenario (TikTok Beg Biru) - Comma separated
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g., Scenario1, Scenario2"
-                    value={selectedSourceScenario.join(', ')}
-                    onChange={(e) =>
-                      setSelectedSourceScenario(
-                        e.target.value.split(',').map((s) => s.trim()).filter((s) => s)
-                      )
-                    }
-                    className="w-full border border-gray-300 rounded-md shadow-sm p-2 text-sm"
-                  />
-                </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Source Scenario (TikTok Beg Biru) - Comma separated
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g., Scenario1, Scenario2"
+                        value={selectedSourceScenario.join(', ')}
+                        onChange={(e) =>
+                          setSelectedSourceScenario(
+                            e.target.value.split(',').map((s) => s.trim()).filter((s) => s)
+                          )
+                        }
+                        className="w-full border border-gray-300 rounded-md shadow-sm p-2 text-sm"
+                      />
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>

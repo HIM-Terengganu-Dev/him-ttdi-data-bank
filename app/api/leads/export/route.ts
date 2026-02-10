@@ -54,18 +54,18 @@ export async function POST(request: NextRequest) {
         paramIndex++;
       }
 
-      // Age range filter
+      // Age range filter (calculated from date_of_birth)
       if (filters.ageMin !== undefined || filters.ageMax !== undefined) {
         if (filters.ageMin !== undefined && filters.ageMax !== undefined) {
-          query += ` AND p.age BETWEEN $${paramIndex} AND $${paramIndex + 1}`;
+          query += ` AND EXTRACT(YEAR FROM AGE(p.date_of_birth))::INTEGER BETWEEN $${paramIndex} AND $${paramIndex + 1}`;
           params.push(filters.ageMin, filters.ageMax);
           paramIndex += 2;
         } else if (filters.ageMin !== undefined) {
-          query += ` AND p.age >= $${paramIndex}`;
+          query += ` AND EXTRACT(YEAR FROM AGE(p.date_of_birth))::INTEGER >= $${paramIndex}`;
           params.push(filters.ageMin);
           paramIndex++;
         } else if (filters.ageMax !== undefined) {
-          query += ` AND p.age <= $${paramIndex}`;
+          query += ` AND EXTRACT(YEAR FROM AGE(p.date_of_birth))::INTEGER <= $${paramIndex}`;
           params.push(filters.ageMax);
           paramIndex++;
         }
@@ -132,15 +132,15 @@ export async function POST(request: NextRequest) {
 
         if (filters.ageMin !== undefined || filters.ageMax !== undefined) {
           if (filters.ageMin !== undefined && filters.ageMax !== undefined) {
-            query += ` AND p.age BETWEEN $${paramIndex} AND $${paramIndex + 1}`;
+            query += ` AND EXTRACT(YEAR FROM AGE(p.date_of_birth))::INTEGER BETWEEN $${paramIndex} AND $${paramIndex + 1}`;
             params.push(filters.ageMin, filters.ageMax);
             paramIndex += 2;
           } else if (filters.ageMin !== undefined) {
-            query += ` AND p.age >= $${paramIndex}`;
+            query += ` AND EXTRACT(YEAR FROM AGE(p.date_of_birth))::INTEGER >= $${paramIndex}`;
             params.push(filters.ageMin);
             paramIndex++;
           } else if (filters.ageMax !== undefined) {
-            query += ` AND p.age <= $${paramIndex}`;
+            query += ` AND EXTRACT(YEAR FROM AGE(p.date_of_birth))::INTEGER <= $${paramIndex}`;
             params.push(filters.ageMax);
             paramIndex++;
           }
@@ -311,18 +311,18 @@ export async function POST(request: NextRequest) {
       paramIndex++;
     }
 
-    // Age range filter (only for existing patients)
+    // Age range filter (only for existing patients, calculated from date_of_birth)
     if (filters.ageMin !== undefined || filters.ageMax !== undefined) {
       if (filters.ageMin !== undefined && filters.ageMax !== undefined) {
-        query += ` AND p.age BETWEEN $${paramIndex} AND $${paramIndex + 1}`;
+        query += ` AND EXTRACT(YEAR FROM AGE(p.date_of_birth))::INTEGER BETWEEN $${paramIndex} AND $${paramIndex + 1}`;
         params.push(filters.ageMin, filters.ageMax);
         paramIndex += 2;
       } else if (filters.ageMin !== undefined) {
-        query += ` AND p.age >= $${paramIndex}`;
+        query += ` AND EXTRACT(YEAR FROM AGE(p.date_of_birth))::INTEGER >= $${paramIndex}`;
         params.push(filters.ageMin);
         paramIndex++;
       } else if (filters.ageMax !== undefined) {
-        query += ` AND p.age <= $${paramIndex}`;
+        query += ` AND EXTRACT(YEAR FROM AGE(p.date_of_birth))::INTEGER <= $${paramIndex}`;
         params.push(filters.ageMax);
         paramIndex++;
       }

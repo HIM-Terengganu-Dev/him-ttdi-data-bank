@@ -52,7 +52,8 @@ export async function ingestPatientDetails(
         id_no: cleanIdNo(row['ID NO']),
         id_type: row['ID TYPE'] || null,
         date_of_birth: parseDate(row['DATE OF BIRTH'] || ''),
-        age: row['AGE'] ? parseInt(row['AGE']) : null,
+        // age is automatically calculated by database trigger from date_of_birth
+        // DO NOT include age in INSERT/UPDATE - it will conflict with the trigger
         gender: row['GENDER'] || null,
         nationality: row['NATIONALITY'] || null,
         race: row['RACE'] || null,
@@ -72,20 +73,19 @@ export async function ingestPatientDetails(
             id_no = COALESCE($3, id_no),
             id_type = COALESCE($4, id_type),
             date_of_birth = COALESCE($5, date_of_birth),
-            age = COALESCE($6, age),
-            gender = COALESCE($7, gender),
-            nationality = COALESCE($8, nationality),
-            race = COALESCE($9, race),
-            ethnicity = COALESCE($10, ethnicity),
-            marital_status = COALESCE($11, marital_status),
-            address = COALESCE($12, address),
-            email = COALESCE($13, email),
-            visit_total = COALESCE($14, visit_total),
-            first_visit_date = COALESCE($15, first_visit_date)
-          WHERE patient_id = $16`,
+            gender = COALESCE($6, gender),
+            nationality = COALESCE($7, nationality),
+            race = COALESCE($8, race),
+            ethnicity = COALESCE($9, ethnicity),
+            marital_status = COALESCE($10, marital_status),
+            address = COALESCE($11, address),
+            email = COALESCE($12, email),
+            visit_total = COALESCE($13, visit_total),
+            first_visit_date = COALESCE($14, first_visit_date)
+          WHERE patient_id = $15`,
           [
             patientData.name, patientData.mrn_no, patientData.id_no,
-            patientData.id_type, patientData.date_of_birth, patientData.age,
+            patientData.id_type, patientData.date_of_birth,
             patientData.gender, patientData.nationality, patientData.race,
             patientData.ethnicity, patientData.marital_status, patientData.address,
             patientData.email, patientData.visit_total, patientData.first_visit_date,
@@ -96,12 +96,12 @@ export async function ingestPatientDetails(
       } else {
         await pool.query(
           `INSERT INTO him_ttdi.patients 
-           (phone_no, name, mrn_no, id_no, id_type, date_of_birth, age, gender, nationality, 
+           (phone_no, name, mrn_no, id_no, id_type, date_of_birth, gender, nationality, 
             race, ethnicity, marital_status, address, email, visit_total, first_visit_date)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
           [
             patientData.phone_no, patientData.name, patientData.mrn_no, patientData.id_no,
-            patientData.id_type, patientData.date_of_birth, patientData.age,
+            patientData.id_type, patientData.date_of_birth,
             patientData.gender, patientData.nationality, patientData.race,
             patientData.ethnicity, patientData.marital_status, patientData.address,
             patientData.email, patientData.visit_total, patientData.first_visit_date
