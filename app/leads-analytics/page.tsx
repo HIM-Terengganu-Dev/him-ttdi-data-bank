@@ -229,7 +229,7 @@ export default function LeadsAnalyticsPage() {
                 const leadCount = parseInt(source.lead_count, 10);
                 const patientCount = parseInt(source.patient_count || '0', 10);
                 const conversionRate = parseFloat(source.conversion_rate || '0');
-                const percentage = totalLeads > 0 ? (leadCount / totalLeads) * 100 : 0;
+                // Bar width represents conversion rate (0-100%), not percentage of total leads
                 return (
                   <div key={index} className="border-l-4 border-blue-500 pl-3">
                     <div className="flex items-center justify-between mb-1">
@@ -247,7 +247,8 @@ export default function LeadsAnalyticsPage() {
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div
                         className="bg-blue-600 h-2 rounded-full transition-all"
-                        style={{ width: `${percentage}%` }}
+                        style={{ width: `${conversionRate}%` }}
+                        title={`${conversionRate}% conversion rate`}
                       />
                     </div>
                     <div className="flex justify-between mt-1">
@@ -328,7 +329,7 @@ export default function LeadsAnalyticsPage() {
                 const leadCount = parseInt(province.lead_count, 10);
                 const patientCount = parseInt(province.patient_count || '0', 10);
                 const conversionRate = parseFloat(province.conversion_rate || '0');
-                const percentage = totalLeads > 0 ? (leadCount / totalLeads) * 100 : 0;
+                // Bar width represents conversion rate (0-100%), not percentage of total leads
                 return (
                   <div key={index} className="border-l-4 border-indigo-500 pl-3">
                     <div className="flex items-center justify-between mb-1">
@@ -346,7 +347,8 @@ export default function LeadsAnalyticsPage() {
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div
                         className="bg-indigo-600 h-2 rounded-full transition-all"
-                        style={{ width: `${percentage}%` }}
+                        style={{ width: `${conversionRate}%` }}
+                        title={`${conversionRate}% conversion rate`}
                       />
                     </div>
                   </div>
