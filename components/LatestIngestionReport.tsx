@@ -19,7 +19,7 @@ interface IngestionData {
 }
 
 interface LatestIngestionReportProps {
-  filter?: 'remedi' | 'leads' | 'all';
+  filter?: 'remedi' | 'leads' | 'wabot' | 'all';
 }
 
 export default function LatestIngestionReport({ filter = 'all' }: LatestIngestionReportProps) {
