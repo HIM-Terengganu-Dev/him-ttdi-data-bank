@@ -21,7 +21,13 @@ import {
   ResponsiveContainer,
   LineChart,
   Line,
+  PieChart,
+  Pie,
+  Cell,
+  Legend
 } from 'recharts';
+
+const COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef'];
 
 interface AnalyticsData {
   metrics: {
@@ -29,10 +35,12 @@ interface AnalyticsData {
     deliveryRate: string;
     readRate: string;
     replyRate: string;
+    engagementRate: string;
   };
   funnel: Array<{ name: string; value: number }>;
   failureAnalysis: Array<{ reason: string; count: number }>;
   timeSeries: Array<{ date: string; blasts: number }>;
+  heatmap: Array<{ hour: string; blasts: number }>;
 }
 
 export default function WabotAnalyticsPage() {
@@ -81,7 +89,7 @@ export default function WabotAnalyticsPage() {
     );
   }
 
-  const { metrics, funnel, failureAnalysis, timeSeries } = data!;
+  const { metrics, funnel, failureAnalysis, timeSeries, heatmap } = data!;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -171,6 +179,22 @@ export default function WabotAnalyticsPage() {
               </div>
             </div>
           </div>
+
+          <div className="bg-white overflow-hidden shadow rounded-lg">
+            <div className="p-5">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <MessageCircle className="h-6 w-6 text-pink-500" />
+                </div>
+                <div className="ml-5 w-0 flex-1">
+                  <dl>
+                    <dt className="text-sm font-medium text-gray-500 truncate">Engagement %</dt>
+                    <dd className="text-3xl font-semibold text-gray-900">{metrics.engagementRate}%</dd>
+                  </dl>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Charts Row */}
@@ -212,6 +236,65 @@ export default function WabotAnalyticsPage() {
                 </LineChart>
               </ResponsiveContainer>
             </div>
+          </div>
+        </div>
+
+        {/* Hourly Heatmap & Pie Chart Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+          
+          {/* Hourly Heatmap */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+              Timeline Heatmap (Hourly Server Load)
+            </h3>
+            <div className="h-72 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={heatmap} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="hour" tick={{ fontSize: 12 }} />
+                  <YAxis />
+                  <Tooltip cursor={{ fill: '#f3f4f6' }} />
+                  <Bar dataKey="blasts" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Error Breakdown Pie Chart */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4 flex items-center">
+              <AlertTriangle className="h-5 w-5 mr-2 text-yellow-500" />
+              Error Breakdown Chart
+            </h3>
+            {failureAnalysis.length === 0 ? (
+              <div className="flex items-center justify-center h-72 text-gray-500">
+                No failures recorded yet. Great job!
+              </div>
+            ) : (
+              <div className="h-72 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={failureAnalysis}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      outerRadius={100}
+                      fill="#8884d8"
+                      dataKey="count"
+                      nameKey="reason"
+                      label={({ percent }) => (percent || 0) > 0.05 ? `${((percent || 0) * 100).toFixed(0)}%` : ''}
+                    >
+                      {failureAnalysis.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend layout="horizontal" verticalAlign="bottom" align="center" wrapperStyle={{ fontSize: '12px' }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </div>
         </div>
 

@@ -29,6 +29,7 @@ export async function GET(request: Request) {
       deliveryRate: totalBlast > 0 ? ((deliveredCount / totalBlast) * 100).toFixed(2) : '0.00',
       readRate: totalBlast > 0 ? ((readCount / totalBlast) * 100).toFixed(2) : '0.00',
       replyRate: totalBlast > 0 ? ((repliedCount / totalBlast) * 100).toFixed(2) : '0.00',
+      engagementRate: deliveredCount > 0 ? (((readCount + repliedCount) / deliveredCount) * 100).toFixed(2) : '0.00',
     };
 
     // 2. Funnel Data
@@ -80,13 +81,34 @@ export async function GET(request: Request) {
       };
     });
 
+    // 5. Hourly Heatmap (Server load monitoring based on SENT)
+    const heatmapResult = await pool.query(`
+      SELECT 
+        EXTRACT(HOUR FROM sent) as hour,
+        COUNT(*) as count
+      FROM him_ttdi.wabot_blasts
+      WHERE sent IS NOT NULL
+      GROUP BY EXTRACT(HOUR FROM sent)
+      ORDER BY hour ASC
+    `);
+    
+    // Map to 24 hours
+    const heatmap = Array.from({ length: 24 }, (_, i) => {
+      const row = heatmapResult.rows.find(r => parseInt(r.hour, 10) === i);
+      return {
+        hour: `${i.toString().padStart(2, '0')}:00`,
+        blasts: row ? parseInt(row.count, 10) : 0
+      };
+    });
+
     return NextResponse.json({
       success: true,
       data: {
         metrics,
         funnel,
         failureAnalysis: errorResult.rows.map(r => ({ reason: r.error_reason, count: parseInt(r.count, 10) })),
-        timeSeries: timeSeriesData
+        timeSeries: timeSeriesData,
+        heatmap
       }
     });
 

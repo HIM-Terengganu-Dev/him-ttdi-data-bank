@@ -30,9 +30,9 @@ export async function ingestWabotBlastData(
   for (const record of records) {
     try {
       const id = record['ID'] || record['id'];
-      const uid = record['UID'] || record['uid'];
-      const receiver = record['RECEIVER'] || record['receiver'];
-      const status = record['STATUS'] || record['status'];
+      const uid = record['UID'] || record['uid'] || null;
+      const receiver = record['RECEIVER'] || record['receiver'] || record['NAME'] || record['name'] || null;
+      const status = record['STATUS'] || record['status'] || 'sent';
       
       const sent = parseTimestamp(record['SENT'] || record['sent']);
       const delivered = parseTimestamp(record['DELIVERED'] || record['delivered']);

@@ -52,7 +52,18 @@ export default function WabotDataPage() {
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return <span className="text-gray-400 italic">Pending</span>;
-    return new Date(dateString).toLocaleString();
+    try {
+      const date = new Date(dateString);
+      // Format to DD/MM/YYYY HH:mm in Malaysia Time
+      const formatter = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Kuala_Lumpur',
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', hour12: false
+      });
+      return formatter.format(date).replace(',', '');
+    } catch {
+      return dateString;
+    }
   };
 
   return (
@@ -119,7 +130,7 @@ export default function WabotDataPage() {
                     </tr>
                   ) : (
                     data.map((row) => (
-                      <tr key={row.id} className={row.failed ? 'bg-red-50' : 'hover:bg-gray-50'}>
+                      <tr key={row.id} className={row.status === 'failed' || row.failed ? 'bg-red-50' : 'hover:bg-gray-50'}>
                         <td className="px-4 py-3 text-sm text-gray-900">
                           <div className="font-medium truncate max-w-[120px]" title={row.id}>{row.id}</div>
                           <div className="text-xs text-gray-500 truncate max-w-[120px]" title={row.uid}>{row.uid}</div>
@@ -130,7 +141,7 @@ export default function WabotDataPage() {
                             row.status === 'delivered' ? 'bg-blue-100 text-blue-800' :
                             row.status === 'read' ? 'bg-purple-100 text-purple-800' :
                             row.status === 'replied' ? 'bg-green-100 text-green-800' :
-                            row.status === 'failed' ? 'bg-red-100 text-red-800' :
+                            row.status === 'failed' || row.failed ? 'bg-red-100 text-red-800' :
                             'bg-gray-100 text-gray-800'
                           }`}>
                             {row.status}
@@ -141,7 +152,14 @@ export default function WabotDataPage() {
                         <td className="px-4 py-3 text-xs text-gray-900 whitespace-nowrap">{formatDate(row.read)}</td>
                         <td className="px-4 py-3 text-xs text-gray-900 whitespace-nowrap">{formatDate(row.replied)}</td>
                         <td className="px-4 py-3 text-xs text-gray-500 max-w-[200px] truncate" title={row.error || ''}>
-                          {row.error || '-'}
+                          {(row.error?.toLowerCase().includes('spam') || row.error?.toLowerCase().includes('limit')) ? (
+                            <span className="inline-flex items-center text-red-600 font-medium">
+                              <AlertCircle className="h-3 w-3 mr-1" />
+                              {row.error}
+                            </span>
+                          ) : (
+                            row.error || '-'
+                          )}
                         </td>
                       </tr>
                     ))
