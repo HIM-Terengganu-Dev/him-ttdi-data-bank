@@ -18,6 +18,7 @@ import {
   ingestTikTokBegBiruLeads,
   ingestWsapmeLeads,
 } from './leads-ingestion';
+import { ingestWabotBlastData } from './wabot-ingestion';
 
 /**
  * Process upload directly from records (for serverless environments)
@@ -92,6 +93,9 @@ export async function processUploadDirect(
       case 'leads_wsapme':
       case 'leads_device_export':
         result = await ingestWsapmeLeads(pool, records, uploadId, tagIds, sourceIds);
+        break;
+      case 'wabot_blast':
+        result = await ingestWabotBlastData(pool, records);
         break;
       default:
         throw new Error(`Unsupported file type: ${fileType}`);

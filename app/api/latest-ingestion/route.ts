@@ -11,7 +11,7 @@ export const runtime = 'nodejs';
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const filter = searchParams.get('filter') || 'all'; // 'remedi', 'leads', or 'all'
+    const filter = searchParams.get('filter') || 'all'; // 'remedi', 'leads', 'wabot', or 'all'
     
     const pool = getPool();
     // Get all file types
@@ -20,16 +20,18 @@ export async function GET(request: Request) {
     // Filter file types based on request
     let fileTypes;
     if (filter === 'remedi') {
-      // Only Remedii file types (exclude leads)
+      // Only Remedii file types (exclude leads and wabot)
       fileTypes = allFileTypes.filter(
-        (ft) => ft.type !== 'leads_tiktok_beg_biru' && ft.type !== 'leads_wsapme'
+        (ft) => ft.type !== 'leads_tiktok_beg_biru' && ft.type !== 'leads_wsapme' && ft.type !== 'leads_device_export' && ft.type !== 'wabot_blast'
       );
     } else if (filter === 'leads') {
-      // For leads, show separate reports for TikTok Beg Biru and Wsapme
-      fileTypes = [
-        { type: 'leads_tiktok_beg_biru' as const, displayName: 'Leads - TikTok Beg Biru', tableName: 'leads_tiktok_beg_biru' },
-        { type: 'leads_wsapme' as const, displayName: 'Leads - Wsapme', tableName: 'leads_wsapme' }
-      ];
+      // For leads, show separate reports
+      fileTypes = allFileTypes.filter(
+        (ft) => ft.type === 'leads_tiktok_beg_biru' || ft.type === 'leads_wsapme' || ft.type === 'leads_device_export'
+      );
+    } else if (filter === 'wabot') {
+      // For WABOT, show just the WABOT report
+      fileTypes = allFileTypes.filter((ft) => ft.type === 'wabot_blast');
     } else {
       // All file types
       fileTypes = allFileTypes;
@@ -174,8 +176,11 @@ function getDateQueryForTable(tableName: string): string | null {
       return `SELECT MAX(DATE(sale_date))::text as max_date FROM him_ttdi.daily_doctor_sales WHERE sale_date IS NOT NULL`;
     case 'leads_tiktok_beg_biru':
     case 'leads_wsapme':
+    case 'leads_device_export':
     case 'leads':
       return `SELECT MAX(DATE(created_at))::text as max_date FROM him_ttdi.leads WHERE created_at IS NOT NULL`;
+    case 'wabot_blasts':
+      return `SELECT MAX(DATE(sent))::text as max_date FROM him_ttdi.wabot_blasts WHERE sent IS NOT NULL`;
     default:
       return null;
   }

@@ -14,6 +14,7 @@ export type CSVFileType =
   | 'leads_tiktok_beg_biru'
   | 'leads_wsapme'
   | 'leads_device_export'
+  | 'wabot_blast'
   | 'unknown';
 
 export interface DetectedFile {
@@ -198,6 +199,27 @@ export function detectFileTypeByContent(headers: string[]): DetectedFile | null 
     };
   }
 
+  // 10. WABOT Blast Data
+  // Key indicators: ID, UID, RECEIVER, STATUS, SENT, DELIVERED, READ, REPLIED
+  if (
+    headersUpper.includes('ID') &&
+    headersUpper.includes('UID') &&
+    headersUpper.includes('RECEIVER') &&
+    headersUpper.includes('STATUS') &&
+    headersUpper.includes('SENT') &&
+    headersUpper.includes('DELIVERED') &&
+    headersUpper.includes('READ') &&
+    headersUpper.includes('REPLIED')
+  ) {
+    return {
+      type: 'wabot_blast',
+      tableName: 'wabot_blasts',
+      displayName: 'WABOT Blast Data',
+      fileName: '',
+      confidence: 'high',
+    };
+  }
+
   return null;
 }
 
@@ -296,6 +318,17 @@ export function detectFileTypeByFilename(fileName: string): DetectedFile | null 
     };
   }
 
+  // WABOT Blast Data - detect by 24-character hex format typical of DB exports
+  if (fileNameUpper.match(/^[0-9A-F]{24}\.CSV$/)) {
+    return {
+      type: 'wabot_blast',
+      tableName: 'wabot_blasts',
+      displayName: 'WABOT Blast Data',
+      fileName,
+      confidence: 'medium',
+    };
+  }
+
   return null;
 }
 
@@ -359,5 +392,6 @@ export function getRemediiFileTypes(): Array<{ type: CSVFileType; displayName: s
     { type: 'leads_tiktok_beg_biru', displayName: 'Leads - TikTok Beg Biru', tableName: 'leads_tiktok_beg_biru' },
     { type: 'leads_wsapme', displayName: 'Leads - Wsapme', tableName: 'leads_wsapme' },
     { type: 'leads_device_export', displayName: 'Leads - Device Export', tableName: 'leads_device_export' },
+    { type: 'wabot_blast', displayName: 'WABOT Blast Data', tableName: 'wabot_blasts' },
   ];
 }

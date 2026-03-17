@@ -11,7 +11,7 @@ export default function Home() {
   const [isUploading, setIsUploading] = useState(false);
   const [isLeadsUploading, setIsLeadsUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
-  const [activeTab, setActiveTab] = useState<'remedi' | 'leads'>('remedi');
+  const [activeTab, setActiveTab] = useState<'remedi' | 'leads' | 'wabot'>('remedi');
   const [refreshKey, setRefreshKey] = useState(0);
 
   const handleUpload = async (files: File[]) => {
@@ -106,6 +106,13 @@ export default function Home() {
                 <Download className="h-4 w-4" />
                 <span>Export</span>
               </Link>
+              <Link
+                href="/wabot-analytics"
+                className="flex items-center space-x-2 px-4 py-2 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors"
+              >
+                <BarChart3 className="h-4 w-4" />
+                <span>WABOT Analytics</span>
+              </Link>
             </div>
           </div>
         </div>
@@ -143,6 +150,16 @@ export default function Home() {
               <Users className="inline h-4 w-4 mr-2" />
               Leads Data
             </button>
+            <button
+              onClick={() => setActiveTab('wabot')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'wabot'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+            >
+              <Users className="inline h-4 w-4 mr-2" />
+              WABOT Data
+            </button>
           </nav>
         </div>
 
@@ -152,15 +169,22 @@ export default function Home() {
             <div className="bg-white rounded-lg shadow p-6">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-semibold text-gray-900 flex items-center">
-                  {activeTab === 'remedi' ? (
+                  {activeTab === 'remedi' && (
                     <>
                       <Upload className="h-5 w-5 mr-2 text-blue-600" />
                       Upload Remedii CSV Files
                     </>
-                  ) : (
+                  )}
+                  {activeTab === 'leads' && (
                     <>
                       <Users className="h-5 w-5 mr-2 text-blue-600" />
                       Upload Leads CSV Files
+                    </>
+                  )}
+                  {activeTab === 'wabot' && (
+                    <>
+                      <Upload className="h-5 w-5 mr-2 text-blue-600" />
+                      Upload WABOT CSV Files
                     </>
                   )}
                 </h2>
@@ -172,7 +196,7 @@ export default function Home() {
                 )}
               </div>
 
-              {activeTab === 'remedi' ? (
+              {activeTab === 'remedi' && (
                 <>
                   <FileDropzone onUpload={handleUpload} isUploading={isUploading} />
 
@@ -194,7 +218,8 @@ export default function Home() {
                     </p>
                   </div>
                 </>
-              ) : (
+              )}
+              {activeTab === 'leads' && (
                 <>
                   <LeadsUpload onUpload={handleLeadsUpload} isUploading={isLeadsUploading} />
 
@@ -212,12 +237,39 @@ export default function Home() {
                   </div>
                 </>
               )}
+              {activeTab === 'wabot' && (
+                <>
+                  {/* Reuse standard file dropzone for WABOT since it goes to the same /api/upload endpoint */}
+                  <FileDropzone onUpload={handleUpload} isUploading={isUploading} />
+
+                  <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+                    <h3 className="text-sm font-medium text-blue-900 mb-2">
+                      Supported WABOT File Types:
+                    </h3>
+                    <ul className="text-sm text-blue-800 space-y-1">
+                      <li>• WABOT Blast CSV Export</li>
+                    </ul>
+                    <p className="text-xs text-blue-700 mt-2">
+                      Note: Must include headers ID, UID, RECEIVER, STATUS, SENT, DELIVERED, READ, REPLIED for accurate processing.
+                    </p>
+                  </div>
+                  
+                  <div className="mt-4 flex space-x-4">
+                    <Link
+                      href="/wabot-data"
+                      className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md shadow-sm transition-colors"
+                    >
+                      View Raw WABOT Data
+                    </Link>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
           {/* Latest Ingestion Report */}
           <div className="lg:col-span-1">
-            <LatestIngestionReport key={refreshKey} filter={activeTab === 'remedi' ? 'remedi' : 'leads'} />
+            <LatestIngestionReport key={refreshKey} filter={activeTab} />
           </div>
         </div>
       </div>
