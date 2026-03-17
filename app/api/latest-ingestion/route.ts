@@ -18,127 +18,100 @@ export async function GET(request: Request) {
     const allFileTypes = getRemediiFileTypes();
     
     // Filter file types based on request
-    let fileTypes;
+    let validTables: string[];
     if (filter === 'remedi') {
-      // Only Remedii file types (exclude leads and wabot)
-      fileTypes = allFileTypes.filter(
-        (ft) => ft.type !== 'leads_tiktok_beg_biru' && ft.type !== 'leads_wsapme' && ft.type !== 'leads_device_export' && ft.type !== 'wabot_blast'
-      );
+      validTables = allFileTypes.filter(ft => ft.type !== 'leads_tiktok_beg_biru' && ft.type !== 'leads_wsapme' && ft.type !== 'leads_device_export' && ft.type !== 'wabot_blast').map(ft => ft.tableName);
     } else if (filter === 'leads') {
-      // For leads, show separate reports
-      fileTypes = allFileTypes.filter(
-        (ft) => ft.type === 'leads_tiktok_beg_biru' || ft.type === 'leads_wsapme' || ft.type === 'leads_device_export'
-      );
+      validTables = allFileTypes.filter(ft => ft.type === 'leads_tiktok_beg_biru' || ft.type === 'leads_wsapme' || ft.type === 'leads_device_export').map(ft => ft.tableName);
+      validTables.push('leads'); // fallback for older uploads
     } else if (filter === 'wabot') {
-      // For WABOT, show just the WABOT report
-      fileTypes = allFileTypes.filter((ft) => ft.type === 'wabot_blast');
+      validTables = allFileTypes.filter(ft => ft.type === 'wabot_blast').map(ft => ft.tableName);
     } else {
-      // All file types
-      fileTypes = allFileTypes;
+      validTables = allFileTypes.map(ft => ft.tableName);
+      validTables.push('leads');
     }
 
-    // Get latest ingestion for each file type
-    const latestIngestions = await Promise.all(
-      fileTypes.map(async (fileType) => {
-        // Find latest upload for this table (including processing/queued status)
-        // Get timestamp directly from database without timezone conversion
-        const result = await pool.query(
-          `SELECT 
-            upload_id,
-            file_name,
-            table_name,
-            rows_processed,
-            rows_inserted,
-            rows_updated,
-            rows_failed,
-            upload_status,
-            uploaded_at,
-            error_message
-          FROM him_ttdi.csv_uploads
-          WHERE table_name = $1
-          ORDER BY uploaded_at DESC
-          LIMIT 1`,
-          [fileType.tableName]
-        );
+    // Query recent 30 uploads chronologically
+    const uploadsResult = await pool.query(
+      `SELECT 
+        upload_id,
+        file_name,
+        table_name,
+        rows_processed,
+        rows_inserted,
+        rows_updated,
+        rows_failed,
+        upload_status,
+        uploaded_at,
+        error_message
+      FROM him_ttdi.csv_uploads
+      WHERE table_name = ANY($1)
+      ORDER BY uploaded_at DESC
+      LIMIT 30`,
+      [validTables]
+    );
 
-        if (result.rows.length === 0) {
-          return {
-            fileType: fileType.displayName,
-            tableName: fileType.tableName,
-            hasData: false,
-          };
-        }
+    // Get max dates for matching tables
+    const tablesInUploads = [...new Set(uploadsResult.rows.map(r => r.table_name))];
+    const tableMaxDates: Record<string, string | null> = {};
 
-        const upload = result.rows[0];
-
-        // Get CSV date directly from database, timezone-blind
-        // Query returns date as text in YYYY-MM-DD format
-        let csvDate: string | null = null;
-        
+    await Promise.all(
+      tablesInUploads.map(async (tableName) => {
         try {
-          const dateQuery = getDateQueryForTable(fileType.tableName);
+          const dateQuery = getDateQueryForTable(tableName);
           if (dateQuery) {
-            const dateResult = await pool.query(dateQuery);
-            if (dateResult.rows.length > 0 && dateResult.rows[0].max_date) {
-              const dbDate = dateResult.rows[0].max_date;
-              // PostgreSQL returns date as text in YYYY-MM-DD format (timezone-blind)
-              if (typeof dbDate === 'string') {
-                // Extract just the date part (YYYY-MM-DD) - should already be in this format
-                csvDate = dbDate.split('T')[0].split(' ')[0];
-              } else if (dbDate instanceof Date) {
-                // Fallback: if it's a Date object, format as YYYY-MM-DD without timezone conversion
-                const year = dbDate.getFullYear();
-                const month = String(dbDate.getMonth() + 1).padStart(2, '0');
-                const day = String(dbDate.getDate()).padStart(2, '0');
-                csvDate = `${year}-${month}-${day}`;
-              } else {
-                // Convert to string and extract date part
-                const dateStr = String(dbDate);
-                csvDate = dateStr.split('T')[0].split(' ')[0];
-              }
-            }
+             const dateResult = await pool.query(dateQuery);
+             if (dateResult.rows.length > 0 && dateResult.rows[0].max_date) {
+               const dbDate = dateResult.rows[0].max_date;
+               if (typeof dbDate === 'string') {
+                 tableMaxDates[tableName] = dbDate.split('T')[0].split(' ')[0];
+               } else if (dbDate instanceof Date) {
+                 const year = dbDate.getFullYear();
+                 const month = String(dbDate.getMonth() + 1).padStart(2, '0');
+                 const day = String(dbDate.getDate()).padStart(2, '0');
+                 tableMaxDates[tableName] = `${year}-${month}-${day}`;
+               } else {
+                 tableMaxDates[tableName] = String(dbDate).split('T')[0].split(' ')[0];
+               }
+             }
           }
         } catch (err) {
-          // Ignore date extraction errors
           console.error('Error extracting CSV date:', err);
         }
-
-        // Use uploaded_at directly from csv_uploads table - timezone unaware
-        // Format it as a simple string without timezone conversion
-        // PostgreSQL returns it as a Date object, format it directly
-        let uploadedAt: string | null = null;
-        if (upload.uploaded_at) {
-          // If it's a Date object, format it as ISO string but preserve the time
-          // We'll format it as YYYY-MM-DDTHH:mm:ss (without timezone)
-          if (upload.uploaded_at instanceof Date) {
-            const year = upload.uploaded_at.getFullYear();
-            const month = String(upload.uploaded_at.getMonth() + 1).padStart(2, '0');
-            const day = String(upload.uploaded_at.getDate()).padStart(2, '0');
-            const hours = String(upload.uploaded_at.getHours()).padStart(2, '0');
-            const minutes = String(upload.uploaded_at.getMinutes()).padStart(2, '0');
-            const seconds = String(upload.uploaded_at.getSeconds()).padStart(2, '0');
-            uploadedAt = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
-          } else {
-            // If it's a string, use it as-is
-            uploadedAt = String(upload.uploaded_at);
-          }
-        }
-
-        return {
-          fileType: fileType.displayName,
-          tableName: fileType.tableName,
-          hasData: true,
-          fileName: upload.file_name,
-          uploadedAt: uploadedAt,
-          csvDate: csvDate, // Already formatted as YYYY-MM-DD string, timezone-blind
-          rowsProcessed: upload.rows_processed,
-          rowsInserted: upload.rows_inserted,
-          rowsUpdated: upload.rows_updated,
-          rowsFailed: upload.rows_failed,
-          uploadStatus: upload.upload_status,
-        };
       })
     );
+
+    const latestIngestions = uploadsResult.rows.map(upload => {
+      let uploadedAt: string | null = null;
+      if (upload.uploaded_at) {
+        if (upload.uploaded_at instanceof Date) {
+          const year = upload.uploaded_at.getFullYear();
+          const month = String(upload.uploaded_at.getMonth() + 1).padStart(2, '0');
+          const day = String(upload.uploaded_at.getDate()).padStart(2, '0');
+          const hours = String(upload.uploaded_at.getHours()).padStart(2, '0');
+          const minutes = String(upload.uploaded_at.getMinutes()).padStart(2, '0');
+          const seconds = String(upload.uploaded_at.getSeconds()).padStart(2, '0');
+          uploadedAt = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+        } else {
+          uploadedAt = String(upload.uploaded_at);
+        }
+      }
+
+      const fileTypeInfo = allFileTypes.find(ft => ft.tableName === upload.table_name);
+      return {
+        fileType: fileTypeInfo ? fileTypeInfo.displayName : upload.table_name,
+        tableName: upload.table_name,
+        hasData: true,
+        fileName: upload.file_name,
+        uploadedAt: uploadedAt,
+        csvDate: tableMaxDates[upload.table_name] || null,
+        rowsProcessed: upload.rows_processed,
+        rowsInserted: upload.rows_inserted,
+        rowsUpdated: upload.rows_updated,
+        rowsFailed: upload.rows_failed,
+        uploadStatus: upload.upload_status,
+      };
+    });
 
     return NextResponse.json({
       success: true,
