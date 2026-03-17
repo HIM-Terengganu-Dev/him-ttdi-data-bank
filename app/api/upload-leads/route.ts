@@ -62,6 +62,7 @@ export async function POST(request: NextRequest) {
             skip_empty_lines: true,
             trim: true,
             relax_column_count: true,
+            bom: true,
           }) as Record<string, any>[];
           const headers = Object.keys((records[0] as Record<string, any>) || {});
           detected = detectFileType(file.name, headers);
@@ -105,6 +106,7 @@ export async function POST(request: NextRequest) {
             skip_empty_lines: true,
             trim: true,
             relax_column_count: true,
+            bom: true,
           }) as Record<string, any>[];
         }
 

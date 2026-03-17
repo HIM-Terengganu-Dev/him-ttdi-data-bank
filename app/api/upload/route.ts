@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
           columns: true,
           skip_empty_lines: true,
           trim: true,
+          bom: true,
         }) as Record<string, any>[];
 
         if (records.length === 0) {
