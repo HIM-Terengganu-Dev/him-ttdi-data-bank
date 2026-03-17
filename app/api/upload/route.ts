@@ -13,6 +13,14 @@ import { parse } from 'csv-parse/sync';
 export const runtime = 'nodejs';
 export const maxDuration = 300; // 5 minutes
 
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '50mb',
+    },
+  },
+};
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
