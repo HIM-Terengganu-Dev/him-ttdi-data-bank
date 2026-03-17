@@ -21,7 +21,7 @@ export default function Home() {
     setUploadProgress(`Starting upload of ${files.length} files...`);
 
     try {
-      const BATCH_SIZE = 5;
+      const BATCH_SIZE = 1;
       for (let i = 0; i < files.length; i += BATCH_SIZE) {
         const batch = files.slice(i, i + BATCH_SIZE);
         setUploadProgress(`Uploading ${Math.min(i + BATCH_SIZE, files.length)} of ${files.length} files...`);
@@ -60,7 +60,7 @@ export default function Home() {
     setUploadProgress(`Starting upload of ${files.length} leads files...`);
 
     try {
-      const BATCH_SIZE = 5;
+      const BATCH_SIZE = 1;
       for (let i = 0; i < files.length; i += BATCH_SIZE) {
         const batch = files.slice(i, i + BATCH_SIZE);
         setUploadProgress(`Uploading leads ${Math.min(i + BATCH_SIZE, files.length)} of ${files.length} files...`);
