@@ -11,69 +11,91 @@ export default function Home() {
   const [isUploading, setIsUploading] = useState(false);
   const [isLeadsUploading, setIsLeadsUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'remedi' | 'leads' | 'wabot'>('remedi');
   const [refreshKey, setRefreshKey] = useState(0);
 
   const handleUpload = async (files: File[]) => {
     setIsUploading(true);
     setUploadSuccess(false);
+    setUploadProgress(`Starting upload of ${files.length} files...`);
 
     try {
-      const formData = new FormData();
-      files.forEach((file) => {
-        formData.append('files', file);
-      });
+      const BATCH_SIZE = 5;
+      for (let i = 0; i < files.length; i += BATCH_SIZE) {
+        const batch = files.slice(i, i + BATCH_SIZE);
+        setUploadProgress(`Uploading ${Math.min(i + BATCH_SIZE, files.length)} of ${files.length} files...`);
+        
+        const formData = new FormData();
+        batch.forEach((file) => {
+          formData.append('files', file);
+        });
 
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
+        const response = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
 
-      const result = await response.json();
+        const result = await response.json();
 
-      if (result.success) {
-        setUploadSuccess(true);
-        setRefreshKey((prev) => prev + 1); // Refresh report
-        setTimeout(() => setUploadSuccess(false), 5000);
-      } else {
-        throw new Error(result.error || 'Upload failed');
+        if (!result.success) {
+          throw new Error(result.error || 'Upload failed for a batch');
+        }
       }
+
+      setUploadSuccess(true);
+      setRefreshKey((prev) => prev + 1); // Refresh report
+      setTimeout(() => setUploadSuccess(false), 5000);
     } catch (error: any) {
       alert(`Upload failed: ${error.message}`);
     } finally {
       setIsUploading(false);
+      setUploadProgress('');
     }
   };
 
   const handleLeadsUpload = async (files: File[], metadata: Record<string, { tagIds: number[], sourceIds: number[] }>) => {
     setIsLeadsUploading(true);
     setUploadSuccess(false);
+    setUploadProgress(`Starting upload of ${files.length} leads files...`);
 
     try {
-      const formData = new FormData();
-      files.forEach((file) => {
-        formData.append('files', file);
-      });
-      formData.append('metadata', JSON.stringify(metadata));
+      const BATCH_SIZE = 5;
+      for (let i = 0; i < files.length; i += BATCH_SIZE) {
+        const batch = files.slice(i, i + BATCH_SIZE);
+        setUploadProgress(`Uploading leads ${Math.min(i + BATCH_SIZE, files.length)} of ${files.length} files...`);
+        
+        const formData = new FormData();
+        const batchMetadata: Record<string, any> = {};
+        
+        batch.forEach((file) => {
+          formData.append('files', file);
+          if (metadata[file.name]) {
+            batchMetadata[file.name] = metadata[file.name];
+          }
+        });
+        formData.append('metadata', JSON.stringify(batchMetadata));
 
-      const response = await fetch('/api/upload-leads', {
-        method: 'POST',
-        body: formData,
-      });
+        const response = await fetch('/api/upload-leads', {
+          method: 'POST',
+          body: formData,
+        });
 
-      const result = await response.json();
+        const result = await response.json();
 
-      if (result.success) {
-        setUploadSuccess(true);
-        setRefreshKey((prev) => prev + 1); // Refresh report
-        setTimeout(() => setUploadSuccess(false), 5000);
-      } else {
-        throw new Error(result.error || 'Upload failed');
+        if (!result.success) {
+          throw new Error(result.error || 'Upload failed for a batch');
+        }
       }
+
+      setUploadSuccess(true);
+      setRefreshKey((prev) => prev + 1); // Refresh report
+      setTimeout(() => setUploadSuccess(false), 5000);
     } catch (error: any) {
       alert(`Upload failed: ${error.message}`);
     } finally {
       setIsLeadsUploading(false);
+      setUploadProgress('');
     }
   };
 
@@ -191,7 +213,7 @@ export default function Home() {
                 {(isUploading || isLeadsUploading) && (
                   <div className="flex items-center text-blue-600">
                     <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                    <span className="text-sm">Uploading...</span>
+                    <span className="text-sm font-medium">{uploadProgress || 'Uploading...'}</span>
                   </div>
                 )}
               </div>
