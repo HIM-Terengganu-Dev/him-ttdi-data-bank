@@ -14,3 +14,11 @@
 2026-02-07T04:23:35.425Z - Env DB: Found
 2026-02-07T04:23:35.430Z - Env DDL: Found
 2026-02-07T04:23:35.431Z - Pool obtained
+2026-03-17T02:59:01.193Z - GET /api/sources called
+2026-03-17T02:59:01.194Z - Env DB: Missing
+2026-03-17T02:59:01.194Z - Env DDL: Found
+2026-03-17T02:59:01.194Z - Pool obtained
+2026-03-17T02:59:01.229Z - GET /api/sources called
+2026-03-17T02:59:01.229Z - Env DB: Missing
+2026-03-17T02:59:01.229Z - Env DDL: Found
+2026-03-17T02:59:01.229Z - Pool obtained
