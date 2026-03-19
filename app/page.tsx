@@ -1,11 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import FileDropzone from '@/components/FileDropzone';
 import LeadsUpload from '@/components/LeadsUpload';
 import LatestIngestionReport from '@/components/LatestIngestionReport';
-import { Upload, RefreshCw, Users, BarChart3, Download } from 'lucide-react';
+import { Upload, RefreshCw, Users, BarChart3, Download, Terminal, Trash2 } from 'lucide-react';
 import Link from 'next/link';
+
+type LogEntry = {
+  time: string;
+  message: string;
+  type: 'info' | 'success' | 'error' | 'detail';
+};
 
 export default function Home() {
   const [isUploading, setIsUploading] = useState(false);
@@ -14,11 +20,24 @@ export default function Home() {
   const [uploadProgress, setUploadProgress] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'remedi' | 'leads' | 'wabot'>('remedi');
   const [refreshKey, setRefreshKey] = useState(0);
+  const [uploadLogs, setUploadLogs] = useState<LogEntry[]>([]);
+  const logEndRef = useRef<HTMLDivElement>(null);
+
+  const addLog = (message: string, type: LogEntry['type'] = 'info') => {
+    const now = new Date();
+    const time = now.toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    setUploadLogs((prev) => [...prev, { time, message, type }]);
+  };
+
+  useEffect(() => {
+    logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [uploadLogs]);
 
   const handleUpload = async (files: File[]) => {
     setIsUploading(true);
     setUploadSuccess(false);
     setUploadProgress(`Starting upload of ${files.length} files...`);
+    addLog(`▶ Starting upload of ${files.length} file(s)...`, 'info');
 
     try {
       const BATCH_SIZE = 1;
@@ -28,6 +47,7 @@ export default function Home() {
         
         const formData = new FormData();
         batch.forEach((file) => {
+          addLog(`📂 Processing: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`, 'info');
           formData.append('files', file);
         });
 
@@ -39,14 +59,30 @@ export default function Home() {
         const result = await response.json();
 
         if (!result.success) {
+          addLog(`❌ Batch failed: ${result.error || 'Unknown error'}`, 'error');
           throw new Error(result.error || 'Upload failed for a batch');
+        }
+
+        // Log each file result
+        if (result.results) {
+          result.results.forEach((r: any) => {
+            if (r.success) {
+              addLog(`✅ ${r.fileName}`, 'success');
+              addLog(`   → Type: ${r.fileType || 'Unknown'} | Table: ${r.tableName || 'N/A'}`, 'detail');
+              addLog(`   → Rows processed: ${r.rowsProcessed ?? 0}`, 'detail');
+            } else {
+              addLog(`❌ ${r.fileName}: ${r.error}`, 'error');
+            }
+          });
         }
       }
 
+      addLog(`🎉 All files uploaded successfully!`, 'success');
       setUploadSuccess(true);
       setRefreshKey((prev) => prev + 1); // Refresh report
       setTimeout(() => setUploadSuccess(false), 5000);
     } catch (error: any) {
+      addLog(`❌ Upload error: ${error.message}`, 'error');
       alert(`Upload failed: ${error.message}`);
     } finally {
       setIsUploading(false);
@@ -58,6 +94,7 @@ export default function Home() {
     setIsLeadsUploading(true);
     setUploadSuccess(false);
     setUploadProgress(`Starting upload of ${files.length} leads files...`);
+    addLog(`▶ Starting leads upload of ${files.length} file(s)...`, 'info');
 
     try {
       const BATCH_SIZE = 1;
@@ -69,6 +106,7 @@ export default function Home() {
         const batchMetadata: Record<string, any> = {};
         
         batch.forEach((file) => {
+          addLog(`📂 Processing: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`, 'info');
           formData.append('files', file);
           if (metadata[file.name]) {
             batchMetadata[file.name] = metadata[file.name];
@@ -84,14 +122,28 @@ export default function Home() {
         const result = await response.json();
 
         if (!result.success) {
+          addLog(`❌ Batch failed: ${result.error || 'Unknown error'}`, 'error');
           throw new Error(result.error || 'Upload failed for a batch');
+        }
+
+        if (result.results) {
+          result.results.forEach((r: any) => {
+            if (r.success) {
+              addLog(`✅ ${r.fileName}`, 'success');
+              addLog(`   → Type: ${r.fileType || 'Leads'} | Rows: ${r.rowsProcessed ?? 0}`, 'detail');
+            } else {
+              addLog(`❌ ${r.fileName}: ${r.error}`, 'error');
+            }
+          });
         }
       }
 
+      addLog(`🎉 All leads files uploaded successfully!`, 'success');
       setUploadSuccess(true);
       setRefreshKey((prev) => prev + 1); // Refresh report
       setTimeout(() => setUploadSuccess(false), 5000);
     } catch (error: any) {
+      addLog(`❌ Upload error: ${error.message}`, 'error');
       alert(`Upload failed: ${error.message}`);
     } finally {
       setIsLeadsUploading(false);
@@ -294,6 +346,40 @@ export default function Home() {
             <LatestIngestionReport key={refreshKey} filter={activeTab} />
           </div>
         </div>
+
+        {/* Upload Log Panel */}
+        {uploadLogs.length > 0 && (
+          <div className="mt-6 bg-gray-900 rounded-lg shadow-lg overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-2 bg-gray-800 border-b border-gray-700">
+              <div className="flex items-center space-x-2">
+                <Terminal className="h-4 w-4 text-green-400" />
+                <span className="text-sm font-mono font-medium text-green-400">Upload Log</span>
+                <span className="text-xs text-gray-400">({uploadLogs.length} entries)</span>
+              </div>
+              <button
+                onClick={() => setUploadLogs([])}
+                className="flex items-center space-x-1 text-xs text-gray-400 hover:text-red-400 transition-colors"
+              >
+                <Trash2 className="h-3 w-3" />
+                <span>Clear</span>
+              </button>
+            </div>
+            <div className="p-4 max-h-64 overflow-y-auto font-mono text-xs space-y-0.5">
+              {uploadLogs.map((entry, i) => (
+                <div key={i} className={`flex gap-3 ${
+                  entry.type === 'success' ? 'text-green-400' :
+                  entry.type === 'error'   ? 'text-red-400' :
+                  entry.type === 'detail'  ? 'text-gray-400' :
+                  'text-blue-300'
+                }`}>
+                  <span className="text-gray-500 shrink-0">[{entry.time}]</span>
+                  <span>{entry.message}</span>
+                </div>
+              ))}
+              <div ref={logEndRef} />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
