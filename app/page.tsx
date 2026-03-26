@@ -6,6 +6,7 @@ import LeadsUpload from '@/components/LeadsUpload';
 import LatestIngestionReport from '@/components/LatestIngestionReport';
 import { Upload, RefreshCw, Users, BarChart3, Download, Terminal, Trash2 } from 'lucide-react';
 import Link from 'next/link';
+import Papa from 'papaparse';
 
 type LogEntry = {
   time: string;
@@ -40,41 +41,97 @@ export default function Home() {
     addLog(`▶ Starting upload of ${files.length} file(s)...`, 'info');
 
     try {
-      const BATCH_SIZE = 1;
-      for (let i = 0; i < files.length; i += BATCH_SIZE) {
-        const batch = files.slice(i, i + BATCH_SIZE);
-        setUploadProgress(`Uploading ${Math.min(i + BATCH_SIZE, files.length)} of ${files.length} files...`);
-        
-        const formData = new FormData();
-        batch.forEach((file) => {
-          addLog(`📂 Processing: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`, 'info');
-          formData.append('files', file);
-        });
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        addLog(`📂 Processing [${i + 1}/${files.length}]: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`, 'info');
+        setUploadProgress(`Processing ${i + 1} of ${files.length}: ${file.name}...`);
 
-        const response = await fetch('/api/upload', {
-          method: 'POST',
-          body: formData,
-        });
+        await new Promise<void>((resolve, reject) => {
+          let uploadId: number | null = null;
+          let fileType: string | null = null;
+          let totalRows = 0;
+          let isFirstChunk = true;
 
-        const result = await response.json();
+          Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            chunkSize: 1024 * 1024 * 2, // 2MB chunks sent to Edge API
+            chunk: async (results, parser) => {
+              parser.pause(); // Pause file reading across I/O wait
+              try {
+                const headers = results.meta.fields || [];
+                if (isFirstChunk) {
+                  // Initialize upload with backend to register upload_id and verify headers
+                  const initRes = await fetch('/api/upload-init', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ fileName: file.name, headers }),
+                  });
+                  const initData = await initRes.json();
+                  if (!initData.success) {
+                      addLog(`❌ Init failed: ${initData.error}`, 'error');
+                      throw new Error(initData.error || 'Failed to initialize upload');
+                  }
+                  
+                  uploadId = initData.uploadId;
+                  fileType = initData.fileType;
+                  addLog(`   → Detected Type: ${initData.fileDisplayName || fileType}`, 'detail');
+                  isFirstChunk = false;
+                }
 
-        if (!result.success) {
-          addLog(`❌ Batch failed: ${result.error || 'Unknown error'}`, 'error');
-          throw new Error(result.error || 'Upload failed for a batch');
-        }
+                if (!uploadId || !fileType) throw new Error('Failed to associate upload payload.');
 
-        // Log each file result
-        if (result.results) {
-          result.results.forEach((r: any) => {
-            if (r.success) {
-              addLog(`✅ ${r.fileName}`, 'success');
-              addLog(`   → Type: ${r.fileType || 'Unknown'} | Table: ${r.tableName || 'N/A'}`, 'detail');
-              addLog(`   → Rows processed: ${r.rowsProcessed ?? 0}`, 'detail');
-            } else {
-              addLog(`❌ ${r.fileName}: ${r.error}`, 'error');
+                // Send micro-chunk
+                const chunkRes = await fetch('/api/upload-chunk', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ uploadId, fileType, records: results.data }),
+                });
+                const chunkData = await chunkRes.json();
+                
+                if (!chunkRes.ok || !chunkData.success) {
+                   throw new Error(chunkData.error || 'Failed to ingest chunk on database');
+                }
+
+                totalRows += results.data.length;
+                setUploadProgress(`Uploading [${i + 1}/${files.length}] ${file.name}: ${totalRows.toLocaleString()} rows...`);
+                
+                parser.resume(); // Continue reading next bytes
+              } catch (err: any) {
+                parser.abort();
+                if (uploadId) {
+                   await fetch('/api/upload-complete', {
+                     method: 'POST',
+                     headers: { 'Content-Type': 'application/json' },
+                     body: JSON.stringify({ uploadId, success: false, error: err.message }),
+                   });
+                }
+                reject(err);
+              }
+            },
+            complete: async () => {
+              try {
+                if (uploadId) {
+                  // Close the upload successfully
+                  await fetch('/api/upload-complete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ uploadId, success: true }),
+                  });
+                  addLog(`✅ ${file.name} | Total rows processed: ${totalRows.toLocaleString()}`, 'success');
+                } else {
+                  addLog(`⚠ ${file.name} successfully parsed but no target was created.`, 'detail');
+                }
+                resolve();
+              } catch (err) {
+                reject(err);
+              }
+            },
+            error: (err) => {
+                reject(err);
             }
           });
-        }
+        });
       }
 
       addLog(`🎉 All files uploaded successfully!`, 'success');
@@ -97,45 +154,99 @@ export default function Home() {
     addLog(`▶ Starting leads upload of ${files.length} file(s)...`, 'info');
 
     try {
-      const BATCH_SIZE = 1;
-      for (let i = 0; i < files.length; i += BATCH_SIZE) {
-        const batch = files.slice(i, i + BATCH_SIZE);
-        setUploadProgress(`Uploading leads ${Math.min(i + BATCH_SIZE, files.length)} of ${files.length} files...`);
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        addLog(`📂 Processing Leads [${i + 1}/${files.length}]: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`, 'info');
+        setUploadProgress(`Processing ${i + 1} of ${files.length}: ${file.name}...`);
         
-        const formData = new FormData();
-        const batchMetadata: Record<string, any> = {};
-        
-        batch.forEach((file) => {
-          addLog(`📂 Processing: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`, 'info');
-          formData.append('files', file);
-          if (metadata[file.name]) {
-            batchMetadata[file.name] = metadata[file.name];
-          }
-        });
-        formData.append('metadata', JSON.stringify(batchMetadata));
+        const fileMeta = metadata[file.name] || { tagIds: [], sourceIds: [] };
 
-        const response = await fetch('/api/upload-leads', {
-          method: 'POST',
-          body: formData,
-        });
+        await new Promise<void>((resolve, reject) => {
+          let uploadId: number | null = null;
+          let fileType: string | null = null;
+          let totalRows = 0;
+          let isFirstChunk = true;
 
-        const result = await response.json();
+          Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            chunkSize: 1024 * 1024 * 2,
+            chunk: async (results, parser) => {
+              parser.pause();
+              try {
+                if (isFirstChunk) {
+                  const headers = results.meta.fields || [];
+                  const initRes = await fetch('/api/upload-init', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ fileName: file.name, headers }),
+                  });
+                  const initData = await initRes.json();
+                  if (!initData.success) {
+                      addLog(`❌ Init failed: ${initData.error}`, 'error');
+                      throw new Error(initData.error || 'Failed to initialize leads upload');
+                  }
+                  uploadId = initData.uploadId;
+                  fileType = initData.fileType;
+                  addLog(`   → Detected Type: ${initData.fileDisplayName || fileType}`, 'detail');
+                  isFirstChunk = false;
+                }
 
-        if (!result.success) {
-          addLog(`❌ Batch failed: ${result.error || 'Unknown error'}`, 'error');
-          throw new Error(result.error || 'Upload failed for a batch');
-        }
+                if (!uploadId || !fileType) throw new Error('Missing upload metadata payload.');
 
-        if (result.results) {
-          result.results.forEach((r: any) => {
-            if (r.success) {
-              addLog(`✅ ${r.fileName}`, 'success');
-              addLog(`   → Type: ${r.fileType || 'Leads'} | Rows: ${r.rowsProcessed ?? 0}`, 'detail');
-            } else {
-              addLog(`❌ ${r.fileName}: ${r.error}`, 'error');
+                const chunkRes = await fetch('/api/upload-chunk', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ 
+                    uploadId, 
+                    fileType, 
+                    records: results.data,
+                    tagIds: fileMeta.tagIds,
+                    sourceIds: fileMeta.sourceIds
+                  }),
+                });
+                const chunkData = await chunkRes.json();
+                if (!chunkRes.ok || !chunkData.success) {
+                   throw new Error(chunkData.error || 'Failed to ingest chunk on database');
+                }
+
+                totalRows += results.data.length;
+                setUploadProgress(`Uploading Leads [${i + 1}/${files.length}] ${file.name}: ${totalRows.toLocaleString()} rows...`);
+                parser.resume();
+              } catch (err: any) {
+                parser.abort();
+                if (uploadId) {
+                   await fetch('/api/upload-complete', {
+                     method: 'POST',
+                     headers: { 'Content-Type': 'application/json' },
+                     body: JSON.stringify({ uploadId, success: false, error: err.message }),
+                   });
+                }
+                reject(err);
+              }
+            },
+            complete: async () => {
+              try {
+                if (uploadId) {
+                  await fetch('/api/upload-complete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ uploadId, success: true }),
+                  });
+                  addLog(`✅ ${file.name} | Total rows processed: ${totalRows.toLocaleString()}`, 'success');
+                } else {
+                  addLog(`⚠ ${file.name} successfully parsed but no target was created.`, 'detail');
+                }
+                resolve();
+              } catch (err) {
+                reject(err);
+              }
+            },
+            error: (err) => {
+                reject(err);
             }
           });
-        }
+        });
       }
 
       addLog(`🎉 All leads files uploaded successfully!`, 'success');

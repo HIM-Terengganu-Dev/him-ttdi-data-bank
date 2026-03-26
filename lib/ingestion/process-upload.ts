@@ -141,7 +141,75 @@ export async function processUploadDirect(
 }
 
 /**
- * Legacy processUpload function removed.
- * We now use processUploadDirect which processes files directly from memory.
- * This avoids file I/O issues in serverless environments and eliminates the need for file_path column.
+ * Process a micro-batch chunk of an upload without marking it complete.
+ * This incrementally updates the rows_inserted, rows_updated, and rows_processed counts.
  */
+export async function processUploadChunk(
+  uploadId: number,
+  records: Record<string, any>[],
+  fileType: string,
+  tagIds: number[] = [],
+  sourceIds: number[] = []
+): Promise<{ inserted: number; updated: number; failed: number; processed: number }> {
+  const pool = getPool();
+
+  if (records.length === 0) return { inserted: 0, updated: 0, failed: 0, processed: 0 };
+
+  // Process based on file type
+  let result;
+  switch (fileType) {
+    case 'patient_details':
+      result = await ingestPatientDetails(pool, records);
+      break;
+    case 'consultation':
+      result = await ingestConsultations(pool, records);
+      break;
+    case 'procedure_prescription':
+      result = await ingestProcedurePrescriptions(pool, records);
+      break;
+    case 'medicine_prescription':
+      result = await ingestMedicinePrescriptions(pool, records);
+      break;
+    case 'invoice':
+      result = await ingestInvoices(pool, records);
+      break;
+    case 'itemized_sales':
+      result = await ingestItemizedSales(pool, records);
+      break;
+    case 'daily_doctor_sales':
+      result = await ingestDailyDoctorSales(pool, records);
+      break;
+    case 'leads_tiktok_beg_biru':
+      result = await ingestTikTokBegBiruLeads(pool, records, uploadId, tagIds, sourceIds);
+      break;
+    case 'leads_wsapme':
+    case 'leads_device_export':
+      result = await ingestWsapmeLeads(pool, records, uploadId, tagIds, sourceIds);
+      break;
+    case 'wabot_blast':
+      result = await ingestWabotBlastData(pool, records);
+      break;
+    default:
+      throw new Error(`Unsupported file type: ${fileType}`);
+  }
+
+  const totalProcessed = result.inserted + result.updated + result.failed + (result.skipped || 0);
+
+  // Incrementally update upload record counts
+  await pool.query(
+    `UPDATE him_ttdi.csv_uploads 
+     SET rows_inserted = COALESCE(rows_inserted, 0) + $1,
+         rows_updated = COALESCE(rows_updated, 0) + $2,
+         rows_failed = COALESCE(rows_failed, 0) + $3,
+         rows_processed = COALESCE(rows_processed, 0) + $4
+     WHERE upload_id = $5`,
+    [result.inserted, result.updated, result.failed, totalProcessed, uploadId]
+  );
+
+  return {
+    inserted: result.inserted,
+    updated: result.updated,
+    failed: result.failed,
+    processed: totalProcessed,
+  };
+}
